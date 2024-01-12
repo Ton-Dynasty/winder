@@ -1,22 +1,16 @@
-from bitarray import bits2bytes
-from tonsdk.utils import Address, concat_bytes, to_nano, bytes_to_b64str
-from tonsdk.boc import Cell, begin_cell, deserialize_cell_data
-from tonsdk.provider import ToncenterClient, prepare_address, address_state
-from tonsdk.contract.token.ft import JettonWallet
+from tonsdk.utils import Address, to_nano
+from tonsdk.boc import Cell, begin_cell
+from tonsdk.provider import ToncenterClient, prepare_address
 from tonsdk.contract.wallet import Wallets, WalletVersionEnum
 
 
 from decimal import Decimal
 from typing import Union
-import requests
 from dotenv import load_dotenv
 import os
-import json
 import time
-from abc import ABC, abstractmethod
 import asyncio
 import aiohttp
-from tvm_valuetypes import serialize_tvm_stack
 
 from utils import float_conversion, int_conversion, to_token
 
@@ -31,7 +25,7 @@ API_KEY = os.getenv("TEST_TONCENTER_API_KEY")
 ORACLE_ADDRESS = Address("kQCFEtu7e-su_IvERBf4FwEXvHISf99lnYuujdo0xYabZQgW")
 
 MNEMONICS, PUB_K, PRIV_K, WALLET = Wallets.from_mnemonics(
-    mnemonics=os.getenv("MNEMONICS").split(" "),
+    mnemonics=str(os.getenv("MNEMONICS")).split(" "),
     version=WalletVersionEnum.v4r2,
     workchain=0,
 )
@@ -51,58 +45,40 @@ def to_bigint(amount: Union[int, float, str, Decimal]) -> int:
 
 
 class TonCenterTonClient:
-    def __init__(self):
-        try:
-            self.loop = asyncio.get_event_loop()
-
-        except RuntimeError:  # This is raised when there is no current event loop
-            self.loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.loop)
-
+    def __init__(self, api_key):
         self.provider = ToncenterClient(
             base_url="https://testnet.toncenter.com/api/v2/",
-            api_key=API_KEY,
+            api_key=api_key,
         )
 
-    def run_get_method(self, addr: str, methood: str, stack: list):
+    async def run_get_method(self, addr: str, method: str, stack: list):
         addr = prepare_address(addr)
-        result = self._run(self.provider.raw_run_method(addr, methood, stack))
+        result = await self._run(self.provider.raw_run_method(addr, method, stack))
 
-        if result[0].get("@type") == "smc.runResult" and "stack" in result[0]:
-            result = result[0]["stack"]
+        if result.get("@type") == "smc.runResult" and "stack" in result:
+            result = result["stack"]
 
         return result
 
-    def send_boc(self, boc):
-        return self._run(self.provider.raw_send_message(boc))
+    async def send_boc(self, boc):
+        return await self._run(self.provider.raw_send_message(boc))
 
-    def _run(self, to_run, *, single_query=True):
-        try:
-            return self.loop.run_until_complete(self._execute(to_run, single_query))
-
-        except Exception:
-            raise
-
-    async def _execute(self, to_run, single_query):
+    async def _run(self, to_run):
         timeout = aiohttp.ClientTimeout(total=5)
-
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            if single_query:
-                to_run = [to_run]
-            tasks = []
-            for task in to_run:
-                tasks.append(task["func"](session, *task["args"], **task["kwargs"]))
-
-            return await asyncio.gather(*tasks)
+            func = to_run["func"]
+            args = to_run["args"]
+            kwargs = to_run["kwargs"]
+            return await func(session, *args, **kwargs)
 
 
-def get_total_amount():
-    client = TonCenterTonClient()
-    result = client.run_get_method(ORACLE_ADDRESS.to_string(), "TotalAmount", [])
-    return result
+async def get_total_amount():
+    client = TonCenterTonClient(API_KEY)
+    result = await client.run_get_method(ORACLE_ADDRESS.to_string(), "TotalAmount", [])
+    return result[0][1]
 
 
-def tick_in_jetton_transfer(
+async def tick_in_jetton_transfer(
     watchmaker_address,
     oracle_address,
     quote_asset_to_transfer,
@@ -125,8 +101,8 @@ def tick_in_jetton_transfer(
         .end_cell()
     )
 
-    client = TonCenterTonClient()
-    seqno = client.run_get_method(WALLET.address.to_string(), "seqno", [])
+    client = TonCenterTonClient(API_KEY)
+    seqno = await client.run_get_method(WALLET.address.to_string(), "seqno", [])
     # print("watchmaker_address", watchmaker_address.to_string())
     # print("oracle_address", oracle_address.to_string())
     # print("base_asset_price", base_asset_price)
@@ -154,20 +130,27 @@ def tick_in_jetton_transfer(
     )
     boc = query["message"].to_boc(False)
 
-    print("@ SeqNum: ", seqno)
-    result = client.send_boc(boc)
+    tasks = [get_total_amount(), client.send_boc(boc)]
+    results = await asyncio.gather(*tasks)
 
-    return result
+    alarm_id = int(results[0], 16) + 1
+    tick_result = results[1]
+
+    return tick_result, alarm_id
 
 
-def tick():
-    pass
+async def main():
+    # print(
+    #     await tick_in_jetton_transfer(
+    #         watchmaker_address=WALLET.address,
+    #         oracle_address=ORACLE_ADDRESS,
+    #         quote_asset_to_transfer=2,
+    #         base_asset_to_transfer=1,
+    #     )
+    # )
+
+    print(await get_total_amount())
 
 
-print("@ Total Alarms:", get_total_amount())
-tick_in_jetton_transfer(
-    watchmaker_address=WALLET.address,
-    oracle_address=ORACLE_ADDRESS,
-    quote_asset_to_transfer=2,
-    base_asset_to_transfer=1,
-)
+if __name__ == "__main__":
+    asyncio.run(main())
