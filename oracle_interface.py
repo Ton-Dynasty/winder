@@ -1,6 +1,5 @@
 from tonsdk.utils import Address, to_nano
 from tonsdk.boc import begin_cell
-from tonsdk.provider import ToncenterClient, prepare_address, address_state
 from tonsdk.contract.wallet import Wallets, WalletVersionEnum
 
 from tonpy import CellSlice
@@ -11,9 +10,9 @@ from dotenv import load_dotenv
 import os
 import time
 import asyncio
-import aiohttp
 
 from utils import float_conversion, to_token
+from ton_center_client import TonCenterTonClient
 
 load_dotenv()
 
@@ -42,42 +41,6 @@ def to_ton(amount: Union[int, float, str, Decimal]) -> Decimal:
 
 def to_bigint(amount: Union[int, float, str, Decimal]) -> int:
     return int(Decimal(amount).to_integral_value())
-
-
-class TonCenterTonClient:
-    def __init__(self, api_key):
-        self.provider = ToncenterClient(
-            base_url="https://testnet.toncenter.com/api/v2/",
-            api_key=api_key,
-        )
-
-    async def run_get_method(self, addr: str, method: str, stack: list):
-        addr = prepare_address(addr)
-        result = await self._run(self.provider.raw_run_method(addr, method, stack))
-
-        if result.get("@type") == "smc.runResult" and "stack" in result:
-            result = result["stack"]
-
-        return result
-
-    async def get_address_information(self, address):
-        address = prepare_address(address)
-        result = await self._run(self.provider.raw_get_account_state(address))
-
-        result["state"] = address_state(result)
-
-        return result["state"]
-
-    async def send_boc(self, boc):
-        return await self._run(self.provider.raw_send_message(boc))
-
-    async def _run(self, to_run):
-        timeout = aiohttp.ClientTimeout(total=5)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            func = to_run["func"]
-            args = to_run["args"]
-            kwargs = to_run["kwargs"]
-            return await func(session, *args, **kwargs)
 
 
 async def get_total_amount():
@@ -222,7 +185,6 @@ async def ring(
 
 
 async def main():
-    pass
     # print(
     #     await tick(
     #         watchmaker=WALLET,
@@ -231,8 +193,7 @@ async def main():
     #         base_asset_to_transfer=1,
     #     )
     # )
-    # print(await ring(WALLET, ORACLE, 3))
-    # print(await get_total_amount())
+    # print(await ring(WALLET, ORACLE, 4))
     # print(
     #     await wind(
     #         timekeeper=WALLET,
@@ -244,8 +205,7 @@ async def main():
     #         need_base_asset=2000000000,
     #     )
     # )
-    # print(await get_total_amount())
-    # print(await check_alarm_address(3))
+    print(await get_total_amount())
 
 
 if __name__ == "__main__":
