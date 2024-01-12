@@ -1,13 +1,16 @@
 import ccxt.async_support as ccxt
-import numpy as np
 import time
 import asyncio
+from typing import Iterable, Optional
 
 EXCHANGE_LIST = [
     "bybit",
     "gateio",
     "okx",
 ]
+
+def mean(arr: Iterable[float]) -> float:
+    return sum(arr) / len(arr)
 
 
 async def fetch_price_from_exchange(exchange_id, symbol="TON/USDT"):
@@ -29,14 +32,14 @@ async def fetch_ton_usdt_prices():
     return [price for price in prices if price is not None]
 
 
-def generator_ton_usdt_prices():
+def generator_ton_usdt_prices() -> Optional[float]:
     while True:
         start_time = time.time()
         prices = asyncio.run(fetch_ton_usdt_prices())
         end_time = time.time()
         print(f"Time taken: {end_time - start_time} seconds")
         if prices:
-            yield np.mean(prices)
+            yield mean(prices)
         else:
             yield None
 
