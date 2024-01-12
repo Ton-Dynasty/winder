@@ -2,7 +2,7 @@ from tonsdk.utils import Address, to_nano
 from tonsdk.boc import Cell, begin_cell
 from tonsdk.provider import ToncenterClient, prepare_address
 from tonsdk.contract.wallet import Wallets, WalletVersionEnum
-
+import base64
 
 from decimal import Decimal
 from typing import Union
@@ -82,13 +82,11 @@ async def get_alarm_address(alarm_id: int):
     result = await client.run_get_method(
         ORACLE.to_string(), "getAlarmAddress", [["num", alarm_id]]
     )
-    cell_bytes = result[0][1]["bytes"].encode("utf-8")
-    cell = Cell()
-    cell.bits.write_bytes(cell_bytes)
-    slice = cell.begin_parse()
-    result = slice.read_msg_addr()
-
-    return result
+    # TODO: Maybe someday we can use this
+    # cell_bytes = base64.b64decode(result[0][1]["bytes"])
+    from tonpy import CellSlice
+    cs = CellSlice(result[0][1]["bytes"])
+    return cs.load_address()
 
 
 async def tick(
@@ -192,7 +190,7 @@ async def main():
     # )
     # result = await ring(watchmaker=WALLET, oracle=ORACLE, alarm_id=0)
     # print(result)
-    print(await get_total_amount())
+    # print(await get_total_amount())
     print(await get_alarm_address(0))
 
 
