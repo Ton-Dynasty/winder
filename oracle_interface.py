@@ -136,12 +136,12 @@ def tick_in_jetton_transfer(
         begin_cell()
         .store_uint(0xF8A7EA5, 32)
         .store_uint(0, 64)
-        .store_grams(to_bigint(quote_asset_transfered))
+        .store_coins(to_bigint(quote_asset_transfered))
         .store_address(oracle_address)
         .store_address(watchmaker_address)
-        .store_uint(0, 1)
-        .store_grams(to_bigint(forward_ton_amount))
-        .store_uint(1, 1)
+        .store_bit(False)
+        .store_coins(to_bigint(forward_ton_amount))
+        # .store_uint(1, 1)
         .store_ref(begin_cell().store_ref(forward_info).end_cell())
         .end_cell()
     )
@@ -156,7 +156,7 @@ def tick_in_jetton_transfer(
     query = WALLET.create_transfer_message(
         to_addr="kQCQ1B7B7-CrvxjsqgYT90s7weLV-IJB2w08DBslDdrIXucv",
         amount=to_nano(4, "ton"),
-        seqno=41,
+        seqno=int(seqno[0][1],16),
         payload=body,
     )
     boc = query["message"].to_boc(False)
