@@ -31,7 +31,9 @@ API_KEY = os.getenv("TEST_TONCENTER_API_KEY")
 ORACLE_ADDRESS = Address("kQCFEtu7e-su_IvERBf4FwEXvHISf99lnYuujdo0xYabZQgW")
 
 MNEMONICS, PUB_K, PRIV_K, WALLET = Wallets.from_mnemonics(
-    mnemonics=os.getenv("MNEMONICS").split(" "), version=WalletVersionEnum.v4r2, workchain=0
+    mnemonics=os.getenv("MNEMONICS").split(" "),
+    version=WalletVersionEnum.v4r2,
+    workchain=0,
 )
 JETTON_WALLET_ADDRESS = Address("0QApdUMEOUuHnBo-RSdbikkZZ3qWItZLdXjyff9lN_eS5Zib")
 
@@ -141,14 +143,14 @@ def tick_in_jetton_transfer(
         .store_address(watchmaker_address)
         .store_bit(False)
         .store_coins(to_bigint(forward_ton_amount))
-        # .store_uint(1, 1)
-        .store_ref(begin_cell().store_ref(forward_info).end_cell())
+        .store_ref(forward_info)
         .end_cell()
     )
+    # body = JettonWallet().create_transfer_body(
     #     to_address=oracle_address,
     #     jetton_amount=to_bigint(quote_asset_transfered),
     #     forward_amount=to_bigint(forward_ton_amount),
-    #     forward_payload=begin_cell().store_ref(forward_info).end_cell(),
+    #     forward_payload=begin_cell().store_ref(forward_info).end_cell().bytes_repr(),
     #     response_address=watchmaker_address,
     #     query_id=0,
     # )
@@ -156,12 +158,12 @@ def tick_in_jetton_transfer(
     query = WALLET.create_transfer_message(
         to_addr="kQCQ1B7B7-CrvxjsqgYT90s7weLV-IJB2w08DBslDdrIXucv",
         amount=to_nano(4, "ton"),
-        seqno=int(seqno[0][1],16),
+        seqno=int(seqno[0][1], 16),
         payload=body,
     )
     boc = query["message"].to_boc(False)
 
-    print("@ SeqNum: ",seqno)
+    print("@ SeqNum: ", seqno)
     result = client.send_boc(boc)
 
     return result
@@ -171,7 +173,7 @@ def tick():
     pass
 
 
-print("@ Total Alarms:",get_total_amount())
+print("@ Total Alarms:", get_total_amount())
 tick_in_jetton_transfer(
     watchmaker_address=WALLET.address,
     oracle_address=ORACLE_ADDRESS,
