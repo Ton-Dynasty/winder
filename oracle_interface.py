@@ -89,7 +89,6 @@ class TonCenterTonClient:
         async with aiohttp.ClientSession(timeout=timeout) as session:
             if single_query:
                 to_run = [to_run]
-            print(str(to_run[0]["kwargs"]["data"]))
             tasks = []
             for task in to_run:
                 tasks.append(task["func"](session, *task["args"], **task["kwargs"]))
@@ -146,15 +145,7 @@ def tick_in_jetton_transfer(
         .store_ref(forward_info)
         .end_cell()
     )
-    # body = JettonWallet().create_transfer_body(
-    #     to_address=oracle_address,
-    #     jetton_amount=to_bigint(quote_asset_transfered),
-    #     forward_amount=to_bigint(forward_ton_amount),
-    #     forward_payload=begin_cell().store_ref(forward_info).end_cell().bytes_repr(),
-    #     response_address=watchmaker_address,
-    #     query_id=0,
-    # )
-    print(body)
+
     query = WALLET.create_transfer_message(
         to_addr="kQCQ1B7B7-CrvxjsqgYT90s7weLV-IJB2w08DBslDdrIXucv",
         amount=to_nano(4, "ton"),
