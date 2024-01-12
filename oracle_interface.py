@@ -22,14 +22,13 @@ GASS_FEE = to_nano(1, "ton")
 MIN_BASEASSET_THRESHOLD = to_nano(1, "ton")
 REWARD_JETTON_CONTENT = begin_cell().end_cell()
 API_KEY = os.getenv("TEST_TONCENTER_API_KEY")
-ORACLE_ADDRESS = Address("kQCFEtu7e-su_IvERBf4FwEXvHISf99lnYuujdo0xYabZQgW")
+ORACLE = Address("kQCFEtu7e-su_IvERBf4FwEXvHISf99lnYuujdo0xYabZQgW")
 
 MNEMONICS, PUB_K, PRIV_K, WALLET = Wallets.from_mnemonics(
     mnemonics=str(os.getenv("MNEMONICS")).split(" "),
     version=WalletVersionEnum.v4r2,
     workchain=0,
 )
-JETTON_WALLET_ADDRESS = Address("0QApdUMEOUuHnBo-RSdbikkZZ3qWItZLdXjyff9lN_eS5Zib")
 
 
 def to_usdt(amount: Union[int, float, str, Decimal]) -> Decimal:
@@ -74,13 +73,27 @@ class TonCenterTonClient:
 
 async def get_total_amount():
     client = TonCenterTonClient(API_KEY)
-    result = await client.run_get_method(ORACLE_ADDRESS.to_string(), "TotalAmount", [])
+    result = await client.run_get_method(ORACLE.to_string(), "TotalAmount", [])
     return result[0][1]
 
 
-async def tick_in_jetton_transfer(
-    watchmaker_address,
-    oracle_address,
+async def get_alarm_address(alarm_id: int):
+    client = TonCenterTonClient(API_KEY)
+    result = await client.run_get_method(
+        ORACLE.to_string(), "getAlarmAddress", [["num", alarm_id]]
+    )
+    cell_bytes = result[0][1]["bytes"].encode("utf-8")
+    cell = Cell()
+    cell.bits.write_bytes(cell_bytes)
+    slice = cell.begin_parse()
+    result = slice.read_msg_addr()
+
+    return result
+
+
+async def tick(
+    watchmaker,
+    oracle,
     quote_asset_to_transfer,
     base_asset_to_transfer=1,
     expire_at=int(time.time()) + 1000,
@@ -102,9 +115,9 @@ async def tick_in_jetton_transfer(
     )
 
     client = TonCenterTonClient(API_KEY)
-    seqno = await client.run_get_method(WALLET.address.to_string(), "seqno", [])
-    # print("watchmaker_address", watchmaker_address.to_string())
-    # print("oracle_address", oracle_address.to_string())
+    seqno = await client.run_get_method(watchmaker.to_string(), "seqno", [])
+    # print("watchmaker", watchmaker.to_string())
+    # print("oracle", oracle.to_string())
     # print("base_asset_price", base_asset_price)
     # print("quote_asset_transfered", to_bigint(quote_asset_transfered))
     # print("forward_ton_amount", to_bigint(forward_ton_amount))
@@ -114,15 +127,15 @@ async def tick_in_jetton_transfer(
         .store_uint(0xF8A7EA5, 32)
         .store_uint(0, 64)
         .store_coins(to_bigint(quote_asset_transfered))
-        .store_address(oracle_address)
-        .store_address(watchmaker_address)
+        .store_address(oracle)
+        .store_address(watchmaker)
         .store_bit(False)
         .store_coins(to_bigint(forward_ton_amount))
         .store_ref(forward_info)
         .end_cell()
     )
 
-    query = WALLET.create_transfer_message(
+    query = watchmaker.create_transfer_message(
         to_addr="kQCQ1B7B7-CrvxjsqgYT90s7weLV-IJB2w08DBslDdrIXucv",
         amount=to_nano(4, "ton"),
         seqno=int(seqno[0][1], 16),
@@ -139,17 +152,48 @@ async def tick_in_jetton_transfer(
     return tick_result, alarm_id
 
 
+async def tock():
+    pass
+
+
+async def ring(
+    watchmaker,
+    oracle,
+    alarm_id,
+):
+    client = TonCenterTonClient(API_KEY)
+    seqno = await client.run_get_method(watchmaker.address.to_string(), "seqno", [])
+    body = (
+        begin_cell()
+        .store_uint(0xC3510A29, 32)
+        .store_uint(0, 257)
+        .store_uint(alarm_id, 257)
+        .end_cell()
+    )
+    print(oracle.to_string())
+    query = watchmaker.create_transfer_message(
+        to_addr=oracle.to_string(),
+        amount=to_nano(1, "ton"),
+        seqno=int(seqno[0][1], 16),
+        payload=body,
+    )
+    boc = query["message"].to_boc(False)
+    return await client.send_boc(boc)
+
+
 async def main():
     # print(
-    #     await tick_in_jetton_transfer(
-    #         watchmaker_address=WALLET.address,
-    #         oracle_address=ORACLE_ADDRESS,
+    #     await tick(
+    #         watchmaker=WALLET,
+    #         oracle=ORACLE,
     #         quote_asset_to_transfer=2,
     #         base_asset_to_transfer=1,
     #     )
     # )
-
+    # result = await ring(watchmaker=WALLET, oracle=ORACLE, alarm_id=0)
+    # print(result)
     print(await get_total_amount())
+    print(await get_alarm_address(0))
 
 
 if __name__ == "__main__":
