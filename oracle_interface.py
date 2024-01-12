@@ -29,9 +29,9 @@ MIN_BASEASSET_THRESHOLD = to_nano(1, "ton")
 REWARD_JETTON_CONTENT = begin_cell().end_cell()
 API_KEY = os.getenv("TEST_TONCENTER_API_KEY")
 ORACLE_ADDRESS = Address("kQCFEtu7e-su_IvERBf4FwEXvHISf99lnYuujdo0xYabZQgW")
-MNEMONICS = json.loads(str(os.getenv("MNEMONICS")))
+
 MNEMONICS, PUB_K, PRIV_K, WALLET = Wallets.from_mnemonics(
-    mnemonics=MNEMONICS, version=WalletVersionEnum.v4r2, workchain=0
+    mnemonics=os.getenv("MNEMONICS").split(" "), version=WalletVersionEnum.v4r2, workchain=0
 )
 JETTON_WALLET_ADDRESS = Address("0QApdUMEOUuHnBo-RSdbikkZZ3qWItZLdXjyff9lN_eS5Zib")
 
@@ -142,7 +142,7 @@ def tick_in_jetton_transfer(
         .store_uint(0, 1)
         .store_grams(to_bigint(forward_ton_amount))
         .store_uint(1, 1)
-        .store_ref(forward_info)
+        .store_ref(begin_cell().store_ref(forward_info).end_cell())
         .end_cell()
     )
     #     to_address=oracle_address,
@@ -156,12 +156,12 @@ def tick_in_jetton_transfer(
     query = WALLET.create_transfer_message(
         to_addr="kQCQ1B7B7-CrvxjsqgYT90s7weLV-IJB2w08DBslDdrIXucv",
         amount=to_nano(4, "ton"),
-        seqno=39,
+        seqno=41,
         payload=body,
     )
     boc = query["message"].to_boc(False)
 
-    print(seqno)
+    print("@ SeqNum: ",seqno)
     result = client.send_boc(boc)
 
     return result
@@ -171,7 +171,7 @@ def tick():
     pass
 
 
-print(get_total_amount())
+print("@ Total Alarms:",get_total_amount())
 tick_in_jetton_transfer(
     watchmaker_address=WALLET.address,
     oracle_address=ORACLE_ADDRESS,
