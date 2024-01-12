@@ -43,6 +43,9 @@ def to_bigint(amount: Union[int, float, str, Decimal]) -> int:
     return int(Decimal(amount).to_integral_value())
 
 
+"""Get Method"""
+
+
 async def get_total_amount():
     client = TonCenterTonClient(API_KEY)
     result = await client.run_get_method(ORACLE.to_string(), "TotalAmount", [])
@@ -61,6 +64,9 @@ async def check_alarm_address(alarm_id: int):
     alarm_address = cs.load_address()
 
     return await client.get_address_information(alarm_address)
+
+
+"""Tick, Wind, Ring"""
 
 
 async def tick(
@@ -88,11 +94,6 @@ async def tick(
 
     client = TonCenterTonClient(API_KEY)
     seqno = await client.run_get_method(watchmaker.address.to_string(), "seqno", [])
-    # print("watchmaker", watchmaker.to_string())
-    # print("oracle", oracle.to_string())
-    # print("base_asset_price", base_asset_price)
-    # print("quote_asset_transfered", to_bigint(quote_asset_transfered))
-    # print("forward_ton_amount", to_bigint(forward_ton_amount))
 
     body = (
         begin_cell()
