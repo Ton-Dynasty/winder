@@ -7,9 +7,16 @@ from tonsdk.utils import Address
 from tonsdk.contract.wallet import Wallets, WalletVersionEnum
 
 from oracle_interface import tick, wind, ring
-from oracle_interface import get_total_amount, get_alarm_info, check_alarms
+from oracle_interface import (
+    get_total_amount,
+    get_alarm_info,
+    check_alarms,
+    get_address_balance,
+    get_token_balance,
+)
 from oracle_interface import to_usdt, to_ton, to_bigint
 from utils import float_conversion, int_conversion
+from market_price import ton_usdt_prices_generator
 
 load_dotenv()
 
@@ -23,6 +30,7 @@ MNEMONICS, PUB_K, PRIV_K, WALLET = Wallets.from_mnemonics(
     version=WalletVersionEnum.v4r2,
     workchain=0,
 )
+QUOTE_JETTON_WALLET = Address("kQCQ1B7B7-CrvxjsqgYT90s7weLV-IJB2w08DBslDdrIXucv")
 PATH_TO_ALARM_JSON = "data/alarm.json"
 
 
@@ -45,8 +53,7 @@ async def find_active_alarm():
     for i in range(total_alarms):
         str_i = str(i)
         if str_i not in alarms or (
-            alarms[str_i]["address"] != "is Mine"
-            and alarms[str_i]["status"] == "active"
+            alarms[str_i]["address"] != "is Mine" and alarms[str_i]["state"] == "active"
         ):
             alarms_to_check.append(str_i)
     print("alarms: ", alarms_to_check)
@@ -145,14 +152,52 @@ async def wind_alarms(active_alarms, price, base_bal, quote_bal):
                 need_quoate_asset=alarm_info["need_quote_asset"],
                 need_base_asset=alarm_info["need_base_asset"],
             )
-        print("Alarm", alarm[0], "finished")
+            base_bal -= alarm_info["need_base_asset"]
+            quote_bal -= alarm_info["need_quote_asset"]
+            print("Alarm", alarm[0], "finished")
+
+        print("Alarm", alarm[0], "no need to wind")
+
+
+async def tick_one_scale(price, base_bal, quote_bal):
+    if to_bigint(base_bal) < to_ton(3):
+        print("Insufficient base asset balance")
+        return None
+    if to_bigint(quote_bal) < to_usdt(price):
+        print("Insufficient quote asset balance")
+        return None
+    tick_result, alarm_id = await tick(
+        watchmaker=WALLET,
+        oracle=ORACLE,
+        quote_asset_to_transfer=price,
+        base_asset_to_transfer=1,
+    )
+    print("Tick result:", tick_result)
+    print("Alarm id:", alarm_id)
+
+    if tick_result["@type"] == "ok":
+        alarm_dict = await load_alarms()
+        alarm_dict[str(alarm_id)] = {
+            "address": "is Mine",
+            "state": "active",
+            "price": price,
+        }
+        await save_alarms(alarm_dict)
 
 
 async def main():
-    active_alarms = await find_active_alarm()
-    print("Active alarms:", active_alarms)
-    price = 4
-    await wind_alarms(active_alarms, price, to_ton(50), to_usdt(900))
+    price_generator = ton_usdt_prices_generator()
+    async for price in price_generator:
+        print("Price:", price)
+        base_bal = await get_address_balance(WALLET.address.to_string())
+        quote_bal = await get_token_balance(QUOTE_JETTON_WALLET.to_string())
+        active_alarms = await find_active_alarm()
+        print("Active alarms:", active_alarms)
+        if active_alarms == []:
+            print("No active alarms, then tick")
+            await tick_one_scale(price, base_bal, quote_bal)
+
+        await wind_alarms(active_alarms, price, base_bal, quote_bal)
 
 
 if __name__ == "__main__":

@@ -74,6 +74,19 @@ async def get_alarm_info(alarm_address: str):
     }
 
 
+async def get_address_balance(address: str):
+    client = TonCenterTonClient(API_KEY)
+    result = await client.get_address_balance(address)
+
+    return result
+
+
+async def get_token_balance(address: str):
+    client = TonCenterTonClient(API_KEY)
+    result = await client.get_token_data(address)
+    return result["balance"]
+
+
 async def check_alarms(alarm_id_list: list):
     client = TonCenterTonClient(API_KEY)
     # open alarm.json
@@ -104,18 +117,18 @@ async def check_alarms(alarm_id_list: list):
             alarm_dict[str(alarm_id)] = {"address": address}
             address_list.append(address)
 
-    # get alarm status
-    tasks = [client.get_address_information(address) for address in address_list]
-    alarm_status_list = await asyncio.gather(*tasks)
+    # get alarm state
+    tasks = [client.get_address_state(address) for address in address_list]
+    alarm_state_list = await asyncio.gather(*tasks)
 
     # update alarm dict
-    for alarm_id, alarm_status in zip(alarm_id_list, alarm_status_list):
-        alarm_dict[str(alarm_id)]["status"] = alarm_status
+    for alarm_id, alarm_state in zip(alarm_id_list, alarm_state_list):
+        alarm_dict[str(alarm_id)]["state"] = alarm_state
 
     result = []
     for alarm_id in alarm_id_list:
         alarm_info = alarm_dict[str(alarm_id)]
-        if alarm_info["status"] == "active":
+        if alarm_info["state"] == "active":
             result.append((alarm_id, alarm_info["address"]))
     # save alarm.json
     with open(PATH_TO_ALARM_JSON, "w") as f:
@@ -177,7 +190,7 @@ async def tick(
     tasks = [get_total_amount(), client.send_boc(boc)]
     results = await asyncio.gather(*tasks)
 
-    alarm_id = results[0] + 1
+    alarm_id = results[0]
     tick_result = results[1]
 
     return tick_result, alarm_id
@@ -220,18 +233,19 @@ async def wind(
     tasks = [get_total_amount(), client.send_boc(boc)]
     results = await asyncio.gather(*tasks)
 
-    alarm_id = results[0] + 1
+    alarm_id = results[0]
     wind_result = results[1]
 
-    with open(PATH_TO_ALARM_JSON, "r") as f:
-        alarm_dict = json.load(f)
-    alarm_dict[str(alarm_id - 1)] = {
-        "address": "is Mine",
-        "status": "active",
-        "price": to_bigint(new_price),
-    }
-    with open(PATH_TO_ALARM_JSON, "w") as f:
-        json.dump(alarm_dict, f, indent=4)
+    if wind_result["@type"] == "ok":
+        with open(PATH_TO_ALARM_JSON, "r") as f:
+            alarm_dict = json.load(f)
+        alarm_dict[str(alarm_id)] = {
+            "address": "is Mine",
+            "state": "active",
+            "price": to_bigint(new_price),
+        }
+        with open(PATH_TO_ALARM_JSON, "w") as f:
+            json.dump(alarm_dict, f, indent=4)
 
     return wind_result, alarm_id
 
@@ -260,7 +274,7 @@ async def ring(
 
     with open(PATH_TO_ALARM_JSON, "r") as f:
         alarm_dict = json.load(f)
-    alarm_dict[str(alarm_id)]["status"] = "uninitialied"
+    alarm_dict[str(alarm_id)]["state"] = "uninitialied"
     with open(PATH_TO_ALARM_JSON, "w") as f:
         json.dump(alarm_dict, f, indent=4)
 
@@ -276,7 +290,7 @@ async def main():
     #         base_asset_to_transfer=1,
     #     )
     # )
-    # print(await ring(WALLET, ORACLE, 4))
+    print(await ring(WALLET, ORACLE, 10))
     # print(
     #     await wind(
     #         timekeeper=WALLET,
@@ -289,8 +303,8 @@ async def main():
     #     )
     # )
     # print(await get_total_amount())
-    # print(await check_alarms([1, 2, 3]))
-    print(await get_alarm_info("EQAWIJ3mBo990Ui8kinaodH3AlMi6Q3aPuhUNoFySO08uhEP"))
+    # print(await check_alarms([1]))
+    # print(await get_alarm_info("EQAWIJ3mBo990Ui8kinaodH3AlMi6Q3aPuhUNoFySO08uhEP"))
 
 
 if __name__ == "__main__":

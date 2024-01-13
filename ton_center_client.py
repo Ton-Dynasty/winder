@@ -1,6 +1,13 @@
 from tonsdk.provider import ToncenterClient, prepare_address, address_state
 
 import aiohttp
+import json
+from typing import Dict, Optional
+
+
+class ToncenterWrongResult(Exception):
+    def __init__(self, code):
+        self.code = code
 
 
 class TonCenterTonClient:
@@ -18,6 +25,35 @@ class TonCenterTonClient:
             result = result["stack"]
 
         return result[0][1]
+
+    async def get_address_state(self, address):
+        req = {
+            "func": self.__jsonrpc_request,
+            "args": ["getAddressState"],
+            "kwargs": {"params": {"address": address}},
+        }
+        result = await self._run(req)
+
+        return result
+
+    async def get_address_balance(self, address):
+        req = {
+            "func": self.__jsonrpc_request,
+            "args": ["getAddressBalance"],
+            "kwargs": {"params": {"address": address}},
+        }
+        result = await self._run(req)
+
+        return result
+
+    async def get_token_data(self, address):
+        req = {
+            "func": self.__jsonrpc_request,
+            "args": ["getTokenData"],
+            "kwargs": {"params": {"address": address}},
+        }
+        result = await self._run(req)
+        return result
 
     async def get_address_information(self, address):
         address = prepare_address(address)
@@ -37,3 +73,45 @@ class TonCenterTonClient:
             args = to_run["args"]
             kwargs = to_run["kwargs"]
             return await func(session, *args, **kwargs)
+
+    async def __post_request(self, session, url, data):
+        async with session.post(
+            url, data=json.dumps(data), headers=self.__headers()
+        ) as resp:
+            return await self.__parse_response(resp)
+
+    async def __jsonrpc_request(
+        self, session, method: str, params: Dict, id: str = "1", jsonrpc: str = "2.0"
+    ):
+        payload = {
+            "id": id,
+            "jsonrpc": jsonrpc,
+            "method": method,
+            "params": params,
+        }
+
+        async with session.post(
+            self.provider.base_url + "jsonRPC", json=payload, headers=self.__headers()
+        ) as resp:
+            return await self.__parse_response(resp)
+
+    def __headers(self):
+        headers = {
+            "Content-Type": "application/json",
+            "accept": "application/json",
+        }
+        if self.provider.api_key:
+            headers["X-API-Key"] = self.provider.api_key
+
+        return headers
+
+    async def __parse_response(self, resp):
+        try:
+            resp = await resp.json()
+        except Exception:  # TODO: catch correct exceptions
+            raise ToncenterWrongResult(resp.status)
+
+        if not resp["ok"]:
+            raise ToncenterWrongResult(resp["code"])
+
+        return resp["result"]
