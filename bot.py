@@ -160,29 +160,30 @@ async def wind_alarms(active_alarms, price, base_bal, quote_bal):
 
 
 async def tick_one_scale(price, base_bal, quote_bal):
-    if to_bigint(base_bal) < to_ton(3):
-        print("Insufficient base asset balance")
-        return None
-    if to_bigint(quote_bal) < to_usdt(price):
-        print("Insufficient quote asset balance")
-        return None
-    tick_result, alarm_id = await tick(
-        watchmaker=WALLET,
-        oracle=ORACLE,
-        quote_asset_to_transfer=price,
-        base_asset_to_transfer=1,
-    )
-    print("Tick result:", tick_result)
-    print("Alarm id:", alarm_id)
-
-    if tick_result["@type"] == "ok":
-        alarm_dict = await load_alarms()
-        alarm_dict[str(alarm_id)] = {
-            "address": "is Mine",
-            "state": "active",
-            "price": price,
-        }
-        await save_alarms(alarm_dict)
+    pass  # In V0, we don't need to tick when there is no active alarms
+    # if to_bigint(base_bal) < to_ton(3):
+    #     print("Insufficient base asset balance")
+    #     return None
+    # if to_bigint(quote_bal) < to_usdt(price):
+    #     print("Insufficient quote asset balance")
+    #     return None
+    # tick_result, alarm_id = await tick(
+    #     watchmaker=WALLET,
+    #     oracle=ORACLE,
+    #     quote_asset_to_transfer=price,
+    #     base_asset_to_transfer=1,
+    # )
+    # print("Tick result:", tick_result)
+    # print("Alarm id:", alarm_id)
+    #
+    # if tick_result["@type"] == "ok":
+    #     alarm_dict = await load_alarms()
+    #     alarm_dict[str(alarm_id)] = {
+    #         "address": "is Mine",
+    #         "state": "active",
+    #         "price": price,
+    #     }
+    #     await save_alarms(alarm_dict)
 
 
 async def main():
@@ -194,7 +195,7 @@ async def main():
         active_alarms = await find_active_alarm()
         print("Active alarms:", active_alarms)
         if active_alarms == []:
-            print("No active alarms, then tick")
+            print("No active alarms")
             await tick_one_scale(price, base_bal, quote_bal)
 
         await wind_alarms(active_alarms, price, base_bal, quote_bal)
