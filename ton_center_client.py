@@ -17,7 +17,7 @@ class TonCenterTonClient:
         if result.get("@type") == "smc.runResult" and "stack" in result:
             result = result["stack"]
 
-        return result
+        return result[0][1]
 
     async def get_address_information(self, address):
         address = prepare_address(address)
