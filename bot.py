@@ -54,24 +54,28 @@ async def save_alarms(updated_alarms):
 
 
 async def find_active_alarm():
-    alarms = await load_alarms()
-    total_alarms = await get_total_amount()
+    try:
+        alarms = await load_alarms()
+        total_alarms = await get_total_amount()
 
-    if alarms is None:
+        if alarms is None:
+            return []
+
+        # Determine if there are new alarms and which are active
+        alarms_to_check = []
+        for i in range(total_alarms):
+            if i not in alarms or (
+                alarms[i]["address"] != "is Mine" and alarms[i]["state"] == "active"
+            ):
+                alarms_to_check.append(i)
+        logger.info(f"Alarms to Check: {alarms_to_check}")
+        # Check alarms and get active alarms [(id, address)]
+        active_alarms = await check_alarms(alarms_to_check)
+
+        return active_alarms
+    except Exception as e:
+        logger.error(f"Error while finding active alarms {e}")
         return []
-
-    # Determine if there are new alarms and which are active
-    alarms_to_check = []
-    for i in range(total_alarms):
-        if i not in alarms or (
-            alarms[i]["address"] != "is Mine" and alarms[i]["state"] == "active"
-        ):
-            alarms_to_check.append(i)
-    logger.info(f"Alarms to Check: {alarms_to_check}")
-    # Check alarms and get active alarms [(id, address)]
-    active_alarms = await check_alarms(alarms_to_check)
-
-    return active_alarms
 
 
 async def estimate(alarm: tuple, price: float, base_bal, quote_bal):
@@ -201,21 +205,26 @@ async def tick_one_scale(price, base_bal, quote_bal):
 
 async def main():
     while True:
-        price = await get_ton_usdt_price()
-        if price is None:
-            continue
-        # =========== New Price Get ===========
-        logger.info("========== New Price Get ===========")
-        logger.info(f"New Price: {price}")
-        base_bal = await get_address_balance(WALLET.address.to_string())
-        quote_bal = await get_token_balance(QUOTE_JETTON_WALLET.to_string())
-        active_alarms = await find_active_alarm()
-        logger.info(f"Active Alarms: {active_alarms}")
-        if active_alarms == []:
-            logging.info("No Active Alarms")
-            await tick_one_scale(price, base_bal, quote_bal)
+        try:
+            price = await get_ton_usdt_price()
+            if price is None:
+                continue
+            # =========== New Price Get ===========
+            logger.info("========== New Price Get ===========")
+            logger.info(f"New Price: {price}")
+            base_bal = await get_address_balance(WALLET.address.to_string())
+            quote_bal = await get_token_balance(QUOTE_JETTON_WALLET.to_string())
+            active_alarms = await find_active_alarm()
+            logger.info(f"Active Alarms: {active_alarms}")
+            if active_alarms == []:
+                logging.info("No Active Alarms")
+                await tick_one_scale(price, base_bal, quote_bal)
 
-        await wind_alarms(active_alarms, price, base_bal, quote_bal)
+            await wind_alarms(active_alarms, price, base_bal, quote_bal)
+
+        except Exception as e:
+            logger.error(f"Error while running bot {e}")
+            continue
 
 
 if __name__ == "__main__":
