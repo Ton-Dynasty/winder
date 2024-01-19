@@ -19,6 +19,9 @@ def create_connection():
             db_info = connection.get_server_info()
             print("Successfully connected to MariaDB server version ", db_info)
             return connection
+        else:
+            print("Failed to connect to MariaDB server")
+            return None
     except Error as e:
         print("Error while connecting to MariaDB", e)
         return None
