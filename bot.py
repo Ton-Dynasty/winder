@@ -1,5 +1,4 @@
 import asyncio
-import json
 import os
 from dotenv import load_dotenv
 
@@ -24,14 +23,14 @@ load_dotenv()
 THRESHOLD_PRICE = float_conversion(1) * to_usdt(1) // to_ton(1)
 MIN_BASEASSET_THRESHOLD = to_ton(1)
 EXTRA_FEES = to_ton(1)
-ORACLE = Address("kQCFEtu7e-su_IvERBf4FwEXvHISf99lnYuujdo0xYabZQgW")
+ORACLE = Address(os.getenv("ORACLE_ADDRESS"))
 
 MNEMONICS, PUB_K, PRIV_K, WALLET = Wallets.from_mnemonics(
     mnemonics=str(os.getenv("MNEMONICS")).split(" "),
     version=WalletVersionEnum.v4r2,
     workchain=0,
 )
-QUOTE_JETTON_WALLET = Address("kQCQ1B7B7-CrvxjsqgYT90s7weLV-IJB2w08DBslDdrIXucv")
+QUOTE_JETTON_WALLET = Address(os.getenv(("QUOTE_JETTON_WALLET_ADDRESS")))
 
 
 async def load_alarms():

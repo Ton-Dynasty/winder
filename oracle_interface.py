@@ -10,7 +10,6 @@ from dotenv import load_dotenv
 import os
 import time
 import asyncio
-import json
 
 from utils import float_conversion, int_conversion, to_token
 from ton_center_client import TonCenterTonClient
@@ -23,7 +22,7 @@ BASEASSET_DECIMALS = 9
 GAS_FEE = to_nano(1, "ton")
 API_KEY = os.getenv("TEST_TONCENTER_API_KEY")
 
-ORACLE = Address("kQCFEtu7e-su_IvERBf4FwEXvHISf99lnYuujdo0xYabZQgW")
+ORACLE = Address(os.getenv("ORACLE_ADDRESS"))
 
 MNEMONICS, PUB_K, PRIV_K, WALLET = Wallets.from_mnemonics(
     mnemonics=str(os.getenv("MNEMONICS")).split(" "),
@@ -193,7 +192,7 @@ async def tick(
     )
 
     query = watchmaker.create_transfer_message(
-        to_addr="kQCQ1B7B7-CrvxjsqgYT90s7weLV-IJB2w08DBslDdrIXucv",
+        to_addr=os.getenv("QUOTE_JETTON_WALLET_ADDRESS"),
         amount=to_nano(4, "ton"),
         seqno=int(seqno, 16),
         payload=body,
@@ -236,7 +235,7 @@ async def wind(
         .end_cell()
     )
     query = timekeeper.create_transfer_message(
-        to_addr="kQCQ1B7B7-CrvxjsqgYT90s7weLV-IJB2w08DBslDdrIXucv",
+        to_addr=os.getenv("QUOTE_JETTON_WALLET_ADDRESS"),
         amount=to_bigint(need_base_asset) + GAS_FEE,
         seqno=int(seqno, 16),
         payload=body,
