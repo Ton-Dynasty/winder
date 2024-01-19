@@ -17,6 +17,7 @@ from oracle_interface import (
 from oracle_interface import to_usdt, to_ton, to_bigint
 from utils import float_conversion, int_conversion
 from market_price import get_ton_usdt_price
+from mariadb_connector import get_alarm_from_db, update_alarm_to_db
 
 load_dotenv()
 
@@ -31,22 +32,22 @@ MNEMONICS, PUB_K, PRIV_K, WALLET = Wallets.from_mnemonics(
     workchain=0,
 )
 QUOTE_JETTON_WALLET = Address("kQCQ1B7B7-CrvxjsqgYT90s7weLV-IJB2w08DBslDdrIXucv")
-PATH_TO_ALARM_JSON = "data/alarm.json"
 
 
 async def load_alarms():
-    with open(PATH_TO_ALARM_JSON, "r") as file:
-        return json.load(file)
+    return await get_alarm_from_db()
 
 
 async def save_alarms(updated_alarms):
-    with open(PATH_TO_ALARM_JSON, "w") as file:
-        json.dump(updated_alarms, file, indent=4)
+    await update_alarm_to_db(updated_alarms)
 
 
 async def find_active_alarm():
     alarms = await load_alarms()
     total_alarms = await get_total_amount()
+
+    if alarms is None:
+        return []
 
     # Determine if there are new alarms and which are active
     alarms_to_check = []

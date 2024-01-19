@@ -14,6 +14,7 @@ import json
 
 from utils import float_conversion, int_conversion, to_token
 from ton_center_client import TonCenterTonClient
+from mariadb_connector import get_alarm_from_db, update_alarm_to_db
 
 load_dotenv()
 
@@ -29,7 +30,6 @@ MNEMONICS, PUB_K, PRIV_K, WALLET = Wallets.from_mnemonics(
     version=WalletVersionEnum.v4r2,
     workchain=0,
 )
-PATH_TO_ALARM_JSON = "data/alarm.json"
 
 
 def to_usdt(amount: Union[int, float, str, Decimal]) -> Decimal:
@@ -89,9 +89,11 @@ async def get_token_balance(address: str):
 
 async def check_alarms(alarm_id_list: list):
     client = TonCenterTonClient(API_KEY)
-    # open alarm.json
-    with open(PATH_TO_ALARM_JSON, "r") as f:
-        alarm_dict = json.load(f)
+
+    # get alarm dict
+    alarm_dict = await get_alarm_from_db()
+    if alarm_dict is None:
+        return []
 
     # get alarm address bytes
     tasks = [
@@ -130,9 +132,9 @@ async def check_alarms(alarm_id_list: list):
         alarm_info = alarm_dict[str(alarm_id)]
         if alarm_info["state"] == "active":
             result.append((alarm_id, alarm_info["address"]))
-    # save alarm.json
-    with open(PATH_TO_ALARM_JSON, "w") as f:
-        json.dump(alarm_dict, f, indent=4)
+
+    # update alarm dict to db
+    await update_alarm_to_db(alarm_dict)
 
     return result
 
@@ -237,15 +239,14 @@ async def wind(
     wind_result = results[1]
 
     if wind_result["@type"] == "ok":
-        with open(PATH_TO_ALARM_JSON, "r") as f:
-            alarm_dict = json.load(f)
-        alarm_dict[str(alarm_id)] = {
-            "address": "is Mine",
-            "state": "active",
-            "price": to_bigint(new_price),
+        update_alarm_dict = {
+            str(alarm_id): {
+                "address": "is Mine",
+                "state": "active",
+                "price": to_bigint(new_price),
+            }
         }
-        with open(PATH_TO_ALARM_JSON, "w") as f:
-            json.dump(alarm_dict, f, indent=4)
+        await update_alarm_to_db(update_alarm_dict)
 
     return wind_result, alarm_id
 
@@ -272,11 +273,11 @@ async def ring(
     )
     boc = query["message"].to_boc(False)
 
-    with open(PATH_TO_ALARM_JSON, "r") as f:
-        alarm_dict = json.load(f)
-    alarm_dict[str(alarm_id)]["state"] = "uninitialied"
-    with open(PATH_TO_ALARM_JSON, "w") as f:
-        json.dump(alarm_dict, f, indent=4)
+    update_alarm_dict = {
+        str(alarm_id): {"address": "is Mine", "state": "uninitialied", "price": 0}
+    }
+
+    await update_alarm_to_db(update_alarm_dict)
 
     return await client.send_boc(boc)
 
