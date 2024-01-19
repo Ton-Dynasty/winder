@@ -191,7 +191,7 @@ async def main():
         price = await get_ton_usdt_price()
         if price is None:
             continue
-        print("Price:", price)
+        print("Current price:", price)
         base_bal = await get_address_balance(WALLET.address.to_string())
         quote_bal = await get_token_balance(QUOTE_JETTON_WALLET.to_string())
         active_alarms = await find_active_alarm()
