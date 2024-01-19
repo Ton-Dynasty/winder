@@ -4,10 +4,17 @@ import os
 import redis
 from dotenv import load_dotenv
 
-from log_config import setup_logging
 import logging
 
-setup_logging()
+# set up logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 load_dotenv()
 
@@ -35,7 +42,7 @@ async def fetch_price_from_exchange(exchange_id, symbol="TON/USDT"):
                 ticker = await exchange.fetch_ticker(symbol)
                 return ticker["last"]
     except Exception as e:
-        logging.error(f"Error while fetching price from {exchange_id}", e)
+        logger.error(f"Error while fetching price from {exchange_id} {e}")
         return None
 
 

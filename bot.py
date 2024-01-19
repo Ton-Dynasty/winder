@@ -1,7 +1,6 @@
 import asyncio
 import os
 from dotenv import load_dotenv
-from log_config import setup_logging
 import logging
 
 
@@ -21,9 +20,17 @@ from utils import float_conversion, int_conversion
 from market_price import get_ton_usdt_price
 from mariadb_connector import get_alarm_from_db, update_alarm_to_db
 
-setup_logging()
-
 load_dotenv()
+
+# set up logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 THRESHOLD_PRICE = float_conversion(1) * to_usdt(1) // to_ton(1)
 MIN_BASEASSET_THRESHOLD = to_ton(1)
@@ -60,7 +67,7 @@ async def find_active_alarm():
             alarms[i]["address"] != "is Mine" and alarms[i]["state"] == "active"
         ):
             alarms_to_check.append(i)
-    logging.info(f"Alarms to Check: {alarms_to_check}")
+    logger.info(f"Alarms to Check: {alarms_to_check}")
     # Check alarms and get active alarms [(id, address)]
     active_alarms = await check_alarms(alarms_to_check)
 
@@ -68,7 +75,7 @@ async def find_active_alarm():
 
 
 async def estimate(alarm: tuple, price: float, base_bal, quote_bal):
-    logging.info("Estimate Alarm", alarm[0])
+    logger.info(f"Estimate Alarm {alarm[0]}")
     alarm_info = await get_alarm_info(alarm[1])  # alarm[1] is address
     new_price = float_conversion(price) * to_usdt(1) // to_ton(1)
     old_price = alarm_info["base_asset_price"]
@@ -120,15 +127,15 @@ async def check_balance(
     need_quote: int,
     max_buy_num: int,
 ):
-    logging.info("Check Balance")
+    logger.info("Check Balance")
     if base_bal < need_base:
-        logging.info("Insufficient Base Asset Balance")
+        logger.info("Insufficient Base Asset Balance")
         return None
     if quote_bal < need_quote:
-        logging.info("Insufficient Quote Asset Balance")
+        logger.info("Insufficient Quote Asset Balance")
         return None
     if max_buy_num == 0:
-        logging.info("Max Buy Num is 0")
+        logger.info("Max Buy Num is 0")
         return None
 
     # Check if enough balance
@@ -160,9 +167,9 @@ async def wind_alarms(active_alarms, price, base_bal, quote_bal):
             )
             base_bal -= alarm_info["need_base_asset"]
             quote_bal -= alarm_info["need_quote_asset"]
-            logging.info("Alarm", alarm[0], "Wind Successfully")
+            logger.info(f"Alarm {alarm[0]} Wind Successfully")
 
-        logging.info("Alarm", alarm[0], "No Need to Wind")
+        logger.info(f"Alarm {alarm[0]} No Need to Wind")
 
 
 async def tick_one_scale(price, base_bal, quote_bal):
@@ -198,12 +205,12 @@ async def main():
         if price is None:
             continue
         # =========== New Price Get ===========
-        logging.info("========== New Price Get ===========")
-        logging.info(f"New Price: {price}")
+        logger.info("========== New Price Get ===========")
+        logger.info(f"New Price: {price}")
         base_bal = await get_address_balance(WALLET.address.to_string())
         quote_bal = await get_token_balance(QUOTE_JETTON_WALLET.to_string())
         active_alarms = await find_active_alarm()
-        logging.info(f"Active Alarms: {active_alarms}")
+        logger.info(f"Active Alarms: {active_alarms}")
         if active_alarms == []:
             logging.info("No Active Alarms")
             await tick_one_scale(price, base_bal, quote_bal)

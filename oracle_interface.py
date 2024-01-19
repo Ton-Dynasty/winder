@@ -7,7 +7,6 @@ from tonpy import CellSlice
 from decimal import Decimal
 from typing import Union
 from dotenv import load_dotenv
-from log_config import setup_logging
 import logging
 import os
 import time
@@ -17,7 +16,15 @@ from utils import float_conversion, int_conversion, to_token
 from ton_center_client import TonCenterTonClient
 from mariadb_connector import get_alarm_from_db, update_alarm_to_db
 
-setup_logging()
+# set up logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 load_dotenv()
 
@@ -91,7 +98,7 @@ async def get_token_balance(address: str):
 
 
 async def check_alarms(alarm_id_list: list):
-    logging.info("Checking Alarms State")
+    logger.info("Checking Alarms State")
     client = TonCenterTonClient(API_KEY)
 
     # get alarm dict
@@ -108,6 +115,7 @@ async def check_alarms(alarm_id_list: list):
             )
             for alarm_id in alarm_id_list[i : i + 5]
         ]
+        logger.info(f"Getting Alarms Address {alarm_id_list[i : i + 5]}")
         results = await asyncio.gather(*tasks)
         address_bytes_list += [result["bytes"] for result in results]
 
@@ -132,6 +140,7 @@ async def check_alarms(alarm_id_list: list):
         tasks = [
             client.get_address_state(address) for address in address_list[i : i + 5]
         ]
+        logger.info(f"Checking Alarms State {address_list[i : i + 5]}")
         alarm_state_list += await asyncio.gather(*tasks)
 
     # update alarm dict
@@ -162,9 +171,9 @@ async def tick(
     expire_at=int(time.time()) + 1000,
     extra_fees=2,
 ):
-    logging.info("Tick")
-    logging.info("quote_asset_to_transfer: ", quote_asset_to_transfer)
-    logging.info("base_asset_to_transfer: ", base_asset_to_transfer)
+    logger.info("Tick")
+    logger.info(f"quote_asset_to_transfer: {quote_asset_to_transfer}")
+    logger.info(f"base_asset_to_transfer: {base_asset_to_transfer}")
     base_asset_price = float_conversion(to_usdt(quote_asset_to_transfer)) // to_ton(
         base_asset_to_transfer
     )
@@ -216,10 +225,10 @@ async def tick(
 async def wind(
     timekeeper, oracle, alarm_id, buy_num, new_price, need_quoate_asset, need_base_asset
 ):
-    logging.info("Wind")
-    logging.info("alarm_id: ", alarm_id)
-    logging.info("buy_num: ", buy_num)
-    logging.info("new_price: ", new_price)
+    logger.info("Wind")
+    logger.info(f"alarm_id: {alarm_id}")
+    logger.info(f"buy_num: {buy_num}")
+    logger.info(f"new_price: {new_price}")
     client = TonCenterTonClient(API_KEY)
     seqno = await client.run_get_method(timekeeper.address.to_string(), "seqno", [])
     forward_info = (
@@ -275,8 +284,8 @@ async def ring(
     oracle,
     alarm_id,
 ):
-    logging.info("Ring")
-    logging.info("alarm_id: ", alarm_id)
+    logger.info("Ring")
+    logger.info(f"alarm_id: {alarm_id}")
     client = TonCenterTonClient(API_KEY)
     seqno = await client.run_get_method(watchmaker.address.to_string(), "seqno", [])
     body = (

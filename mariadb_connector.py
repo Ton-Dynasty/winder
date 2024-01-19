@@ -4,10 +4,17 @@ import asyncio
 
 import mysql.connector as connector
 
-from log_config import setup_logging
 import logging
 
-setup_logging()
+# set up logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 
 load_dotenv()
@@ -28,7 +35,7 @@ async def create_connection():
         else:
             return None
     except Exception as e:
-        logging.error("Error while connecting to MariaDB", e)
+        logger.error(f"Error while connecting to MariaDB {e}")
 
 
 async def init():
@@ -47,12 +54,12 @@ async def init():
             cursor.execute(create_table_sql)
             connection.commit()
             connection.close()
-            logging.info("Successfully Initialized MariaDB")
+            logger.info("Successfully Initialized MariaDB")
 
             return True
 
     except Exception as e:
-        logging.error("Error while initializing MariaDB", e)
+        logger.error("Error while initializing MariaDB", e)
         return False
 
 
@@ -76,7 +83,7 @@ async def get_alarm_from_db():
             return result
 
     except Exception as e:
-        logging.error("Error while getting alarm info", e)
+        logger.error(f"Error while fetching alarm info from MariaDB {e}")
         return None
 
 
@@ -109,7 +116,7 @@ async def update_alarm_to_db(alarm_dict):
             connection.close()
 
     except Exception as e:
-        logging.error("Error while updating alarm info", e)
+        logger.error(f"Error while updating alarm info to MariaDB {e}")
 
 
 async def main():
