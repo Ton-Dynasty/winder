@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - "main"
+      - "develop"
+      - "1-containerize-the-bot"
     tags:
       - "*"
     paths-ignore:
