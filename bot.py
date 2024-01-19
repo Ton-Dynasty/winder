@@ -54,28 +54,24 @@ async def save_alarms(updated_alarms):
 
 
 async def find_active_alarm():
-    try:
-        alarms = await load_alarms()
-        total_alarms = await get_total_amount()
+    alarms = await load_alarms()
+    total_alarms = await get_total_amount()
 
-        if alarms is None:
-            return []
-
-        # Determine if there are new alarms and which are active
-        alarms_to_check = []
-        for i in range(total_alarms):
-            if i not in alarms or (
-                alarms[i]["address"] != "is Mine" and alarms[i]["state"] == "active"
-            ):
-                alarms_to_check.append(i)
-        logger.info(f"Alarms to Check: {alarms_to_check}")
-        # Check alarms and get active alarms [(id, address)]
-        active_alarms = await check_alarms(alarms_to_check)
-
-        return active_alarms
-    except Exception as e:
-        logger.error(f"Error while finding active alarms {e}")
+    if alarms is None:
         return []
+
+    # Determine if there are new alarms and which are active
+    alarms_to_check = []
+    for i in range(total_alarms):
+        if i not in alarms or (
+            alarms[i]["address"] != "is Mine" and alarms[i]["state"] == "active"
+        ):
+            alarms_to_check.append(i)
+    logger.info(f"Alarms to Check: {alarms_to_check}")
+    # Check alarms and get active alarms [(id, address)]
+    active_alarms = await check_alarms(alarms_to_check)
+
+    return active_alarms
 
 
 async def estimate(alarm: tuple, price: float, base_bal, quote_bal):
