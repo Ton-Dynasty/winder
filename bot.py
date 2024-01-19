@@ -1,6 +1,9 @@
 import asyncio
 import os
 from dotenv import load_dotenv
+from log_config import setup_logging
+import logging
+
 
 from tonsdk.utils import Address
 from tonsdk.contract.wallet import Wallets, WalletVersionEnum
@@ -17,6 +20,8 @@ from oracle_interface import to_usdt, to_ton, to_bigint
 from utils import float_conversion, int_conversion
 from market_price import get_ton_usdt_price
 from mariadb_connector import get_alarm_from_db, update_alarm_to_db
+
+setup_logging()
 
 load_dotenv()
 
@@ -55,7 +60,7 @@ async def find_active_alarm():
             alarms[i]["address"] != "is Mine" and alarms[i]["state"] == "active"
         ):
             alarms_to_check.append(i)
-    print("alarms: ", alarms_to_check)
+    logging.info(f"Alarms to Check: {alarms_to_check}")
     # Check alarms and get active alarms [(id, address)]
     active_alarms = await check_alarms(alarms_to_check)
 
@@ -63,6 +68,7 @@ async def find_active_alarm():
 
 
 async def estimate(alarm: tuple, price: float, base_bal, quote_bal):
+    logging.info("Estimate Alarm", alarm[0])
     alarm_info = await get_alarm_info(alarm[1])  # alarm[1] is address
     new_price = float_conversion(price) * to_usdt(1) // to_ton(1)
     old_price = alarm_info["base_asset_price"]
@@ -114,14 +120,15 @@ async def check_balance(
     need_quote: int,
     max_buy_num: int,
 ):
+    logging.info("Check Balance")
     if base_bal < need_base:
-        print("Insufficient base asset balance")
+        logging.info("Insufficient Base Asset Balance")
         return None
     if quote_bal < need_quote:
-        print("Insufficient quote asset balance")
+        logging.info("Insufficient Quote Asset Balance")
         return None
     if max_buy_num == 0:
-        print("Max buy num is 0")
+        logging.info("Max Buy Num is 0")
         return None
 
     # Check if enough balance
@@ -153,9 +160,9 @@ async def wind_alarms(active_alarms, price, base_bal, quote_bal):
             )
             base_bal -= alarm_info["need_base_asset"]
             quote_bal -= alarm_info["need_quote_asset"]
-            print("Alarm", alarm[0], "finished")
+            logging.info("Alarm", alarm[0], "Wind Successfully")
 
-        print("Alarm", alarm[0], "no need to wind")
+        logging.info("Alarm", alarm[0], "No Need to Wind")
 
 
 async def tick_one_scale(price, base_bal, quote_bal):
@@ -190,13 +197,15 @@ async def main():
         price = await get_ton_usdt_price()
         if price is None:
             continue
-        print("Current price:", price)
+        # =========== New Price Get ===========
+        logging.info("========== New Price Get ===========")
+        logging.info(f"New Price: {price}")
         base_bal = await get_address_balance(WALLET.address.to_string())
         quote_bal = await get_token_balance(QUOTE_JETTON_WALLET.to_string())
         active_alarms = await find_active_alarm()
-        print("Active alarms:", active_alarms)
+        logging.info(f"Active Alarms: {active_alarms}")
         if active_alarms == []:
-            print("No active alarms")
+            logging.info("No Active Alarms")
             await tick_one_scale(price, base_bal, quote_bal)
 
         await wind_alarms(active_alarms, price, base_bal, quote_bal)

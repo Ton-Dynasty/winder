@@ -4,6 +4,11 @@ import os
 import redis
 from dotenv import load_dotenv
 
+from log_config import setup_logging
+import logging
+
+setup_logging()
+
 load_dotenv()
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
@@ -30,7 +35,7 @@ async def fetch_price_from_exchange(exchange_id, symbol="TON/USDT"):
                 ticker = await exchange.fetch_ticker(symbol)
                 return ticker["last"]
     except Exception as e:
-        print(f"Error fetching from {exchange_id}: {str(e)}")
+        logging.error(f"Error while fetching price from {exchange_id}", e)
         return None
 
 

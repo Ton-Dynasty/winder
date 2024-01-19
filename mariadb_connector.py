@@ -4,6 +4,12 @@ import asyncio
 
 import mysql.connector as connector
 
+from log_config import setup_logging
+import logging
+
+setup_logging()
+
+
 load_dotenv()
 
 MYSQL_DATABASE = os.getenv("MYSQL_DATABASE")
@@ -18,14 +24,11 @@ async def create_connection():
             password=os.getenv("MYSQL_PASSWORD"),
         )
         if connection.is_connected():
-            db_info = connection.get_server_info()
-            print("Successfully connected to MariaDB server version ", db_info)
             return connection
         else:
-            print("Failed to connect to MariaDB server")
             return None
     except Exception as e:
-        print("Error while connecting to MariaDB", e)
+        logging.error("Error while connecting to MariaDB", e)
 
 
 async def init():
@@ -44,12 +47,12 @@ async def init():
             cursor.execute(create_table_sql)
             connection.commit()
             connection.close()
-            print("Successfully created table")
+            logging.info("Successfully Initialized MariaDB")
 
             return True
 
     except Exception as e:
-        print("Error while creating table", e)
+        logging.error("Error while initializing MariaDB", e)
         return False
 
 
@@ -60,7 +63,6 @@ async def get_alarm_from_db():
             cursor = connection.cursor()
             select_sql = "SELECT * FROM {}"
             select_sql = select_sql.format(MYSQL_DATABASE)
-            print("Select SQL", select_sql)
             cursor.execute(select_sql)
             result = {}
             for id, address, state, price in cursor.fetchall():
@@ -74,7 +76,7 @@ async def get_alarm_from_db():
             return result
 
     except Exception as e:
-        print("Error while getting alarm info", e)
+        logging.error("Error while getting alarm info", e)
         return None
 
 
@@ -105,10 +107,9 @@ async def update_alarm_to_db(alarm_dict):
             connection.commit()
             cursor.close()
             connection.close()
-            print("Successfully updated alarm info")
 
     except Exception as e:
-        print("Error while updating alarm info", e)
+        logging.error("Error while updating alarm info", e)
 
 
 async def main():
