@@ -94,21 +94,24 @@ async def check_alarms(alarm_id_list: list):
     alarm_dict = await get_alarm_from_db()
     if alarm_dict is None:
         return []
-
+    print("@ Alarm Dict", alarm_dict)
     # get alarm address bytes
-    tasks = [
-        client.run_get_method(
-            ORACLE.to_string(), "getAlarmAddress", [["num", alarm_id]]
-        )
-        for alarm_id in alarm_id_list
-    ]
-    results = await asyncio.gather(*tasks)
-    address_bytes_list = [result["bytes"] for result in results]
+    address_bytes_list = []
+    # 5 tasks one time
+    for i in range(0, len(alarm_id_list), 5):
+        tasks = [
+            client.run_get_method(
+                ORACLE.to_string(), "getAlarmAddress", [["num", alarm_id]]
+            )
+            for alarm_id in alarm_id_list[i : i + 5]
+        ]
+        results = await asyncio.gather(*tasks)
+        address_bytes_list += [result["bytes"] for result in results]
 
     # get alarm address
     address_list = []
     for alarm_id, address_bytes in zip(alarm_id_list, address_bytes_list):
-        alarm_info = alarm_dict.get(str(alarm_id))
+        alarm_info = alarm_dict.get(alarm_id)
         if alarm_info and alarm_info.get("address"):
             address_list.append(alarm_info["address"])
         else:
@@ -116,22 +119,30 @@ async def check_alarms(alarm_id_list: list):
             # cell_bytes = base64.b64decode(result[0][1]["bytes"])
             cs = CellSlice(address_bytes)
             address = cs.load_address()
-            alarm_dict[str(alarm_id)] = {"address": address}
+            alarm_dict[alarm_id] = {"address": address}
             address_list.append(address)
 
     # get alarm state
-    tasks = [client.get_address_state(address) for address in address_list]
-    alarm_state_list = await asyncio.gather(*tasks)
+    alarm_state_list = []
+    # 5 tasks one time
+    for i in range(0, len(address_list), 5):
+        tasks = [
+            client.get_address_state(address) for address in address_list[i : i + 5]
+        ]
+        alarm_state_list += await asyncio.gather(*tasks)
 
     # update alarm dict
     for alarm_id, alarm_state in zip(alarm_id_list, alarm_state_list):
-        alarm_dict[str(alarm_id)]["state"] = alarm_state
+        alarm_dict[alarm_id]["state"] = alarm_state
+        alarm_dict[alarm_id]["price"] = -1
 
     result = []
     for alarm_id in alarm_id_list:
-        alarm_info = alarm_dict[str(alarm_id)]
+        alarm_info = alarm_dict[alarm_id]
         if alarm_info["state"] == "active":
             result.append((alarm_id, alarm_info["address"]))
+
+    print("@ Alarm Dict", alarm_dict)
 
     # update alarm dict to db
     await update_alarm_to_db(alarm_dict)
@@ -240,7 +251,7 @@ async def wind(
 
     if wind_result["@type"] == "ok":
         update_alarm_dict = {
-            str(alarm_id): {
+            alarm_id: {
                 "address": "is Mine",
                 "state": "active",
                 "price": to_bigint(new_price),
@@ -274,7 +285,7 @@ async def ring(
     boc = query["message"].to_boc(False)
 
     update_alarm_dict = {
-        str(alarm_id): {"address": "is Mine", "state": "uninitialied", "price": 0}
+        alarm_id: {"address": "is Mine", "state": "uninitialied", "price": 0}
     }
 
     await update_alarm_to_db(update_alarm_dict)

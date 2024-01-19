@@ -52,11 +52,10 @@ async def find_active_alarm():
     # Determine if there are new alarms and which are active
     alarms_to_check = []
     for i in range(total_alarms):
-        str_i = str(i)
-        if str_i not in alarms or (
-            alarms[str_i]["address"] != "is Mine" and alarms[str_i]["state"] == "active"
+        if i not in alarms or (
+            alarms[i]["address"] != "is Mine" and alarms[i]["state"] == "active"
         ):
-            alarms_to_check.append(str_i)
+            alarms_to_check.append(i)
     print("alarms: ", alarms_to_check)
     # Check alarms and get active alarms [(id, address)]
     active_alarms = await check_alarms(alarms_to_check)

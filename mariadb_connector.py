@@ -3,7 +3,6 @@ from dotenv import load_dotenv
 import asyncio
 
 import mysql.connector as connector
-import mysql.connector.errors as Error
 
 load_dotenv()
 
@@ -25,26 +24,33 @@ async def create_connection():
         else:
             print("Failed to connect to MariaDB server")
             return None
-    except Error as e:
+    except Exception as e:
         print("Error while connecting to MariaDB", e)
-        return None
 
 
 async def init():
-    connection = await create_connection()
-    if connection is not None and connection.is_connected():
-        cursor = connection.cursor()
-        create_table_sql = """
-        CREATE TABLE IF NOT EXISTS your_table (
-            id INT PRIMARY KEY,
-            address VARCHAR(255),
-            state VARCHAR(100),
-            price DECIMAL(10, 2)
-        )
-        """
-        cursor.execute(create_table_sql)
-        connection.commit()
-        connection.close()
+    try:
+        connection = await create_connection()
+        if connection is not None and connection.is_connected():
+            cursor = connection.cursor()
+            create_table_sql = """
+            CREATE TABLE IF NOT EXISTS alarms (
+                id INT PRIMARY KEY,
+                address VARCHAR(255),
+                state VARCHAR(100),
+                price DECIMAL(10, 2)
+            )
+            """
+            cursor.execute(create_table_sql)
+            connection.commit()
+            connection.close()
+            print("Successfully created table")
+
+            return True
+
+    except Exception as e:
+        print("Error while creating table", e)
+        return False
 
 
 async def get_alarm_from_db():
@@ -54,6 +60,7 @@ async def get_alarm_from_db():
             cursor = connection.cursor()
             select_sql = "SELECT * FROM {}"
             select_sql = select_sql.format(MYSQL_DATABASE)
+            print("Select SQL", select_sql)
             cursor.execute(select_sql)
             result = {}
             for id, address, state, price in cursor.fetchall():
@@ -66,7 +73,7 @@ async def get_alarm_from_db():
             connection.close()
             return result
 
-    except Error as e:
+    except Exception as e:
         print("Error while getting alarm info", e)
         return None
 
@@ -100,9 +107,15 @@ async def update_alarm_to_db(alarm_dict):
             connection.close()
             print("Successfully updated alarm info")
 
-    except Error as e:
+    except Exception as e:
         print("Error while updating alarm info", e)
 
 
+async def main():
+    flag = False
+    while not flag:
+        flag = await init()
+
+
 if __name__ == "__main__":
-    asyncio.run(init())
+    asyncio.run(main())
