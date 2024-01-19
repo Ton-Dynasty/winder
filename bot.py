@@ -16,7 +16,7 @@ from oracle_interface import (
 )
 from oracle_interface import to_usdt, to_ton, to_bigint
 from utils import float_conversion, int_conversion
-from market_price import ton_usdt_prices_generator
+from market_price import get_ton_usdt_price
 
 load_dotenv()
 
@@ -187,8 +187,8 @@ async def tick_one_scale(price, base_bal, quote_bal):
 
 
 async def main():
-    price_generator = ton_usdt_prices_generator()
-    async for price in price_generator:
+    while True:
+        price = await get_ton_usdt_price()
         print("Price:", price)
         base_bal = await get_address_balance(WALLET.address.to_string())
         quote_bal = await get_token_balance(QUOTE_JETTON_WALLET.to_string())
