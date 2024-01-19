@@ -1,2 +1,3 @@
 #!/bin/sh
-python ./mariadb.py &
+
+python ./mariadb.py
