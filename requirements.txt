@@ -28,7 +28,6 @@ click==8.1.7
 coloredlogs==15.0.1
 configparser==5.3.0
 contourpy==1.2.0
-cramjam==2.6.2
 crc16==0.1.1
 crc32c==2.3.post0
 cryptography==41.0.7
