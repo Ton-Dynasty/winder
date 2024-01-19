@@ -189,6 +189,8 @@ async def tick_one_scale(price, base_bal, quote_bal):
 async def main():
     while True:
         price = await get_ton_usdt_price()
+        if price is None:
+            continue
         print("Price:", price)
         base_bal = await get_address_balance(WALLET.address.to_string())
         quote_bal = await get_token_balance(QUOTE_JETTON_WALLET.to_string())

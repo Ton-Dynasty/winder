@@ -45,9 +45,9 @@ async def set_ton_usdt_prices():
         prices = await fetch_ton_usdt_prices()
         if prices:
             price = sum(prices) / len(prices)
+            redis_client.set("ton_usdt_price", price)
         else:
             continue
-        redis_client.set("ton_usdt_price", price)
 
 
 async def get_ton_usdt_price():
