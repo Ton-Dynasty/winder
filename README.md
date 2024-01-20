@@ -13,6 +13,7 @@ The **Ticton Oracle Bot** is an arbitrage bot that operates by fetching the aver
 2. **Environment Variables**: 
    - Create a `.env` file in the root directory of the project.
    - Fill out your `.env` file using `.env.example` as a guide.
+   - Obtain your Ton Center Testnet API key from [@tonapibot](https://t.me/tonapibot)
 
 ## Running the Application
 1. **Docker Compose**: Navigate to the root directory of the project where the `docker-compose.yml` file is located.
