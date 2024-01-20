@@ -267,11 +267,12 @@ async def wind(
     wind_result = results[1]
 
     if wind_result["@type"] == "ok":
+        new_price = int_conversion(new_price * to_ton(1) / to_usdt(1))
         update_alarm_dict = {
             alarm_id: {
                 "address": "is Mine",
                 "state": "active",
-                "price": to_bigint(new_price),
+                "price": round(new_price, 9),
             }
         }
         await update_alarm_to_db(update_alarm_dict)
@@ -291,7 +292,7 @@ async def ring(
     body = (
         begin_cell()
         .store_uint(0xC3510A29, 32)
-        .store_uint(0, 257)
+        .store_uint(alarm_id, 257)
         .store_uint(alarm_id, 257)
         .end_cell()
     )
@@ -304,24 +305,25 @@ async def ring(
     boc = query["message"].to_boc(False)
 
     update_alarm_dict = {
-        alarm_id: {"address": "is Mine", "state": "uninitialied", "price": 0}
+        alarm_id: {"address": "is Mine", "state": "uninitialied", "price": -1}
     }
+    result = await client.send_boc(boc)
 
     await update_alarm_to_db(update_alarm_dict)
 
-    return await client.send_boc(boc)
+    return result
 
 
 async def main():
-    # print(
-    #     await tick(
-    #         watchmaker=WALLET,
-    #         oracle=ORACLE,
-    #         quote_asset_to_transfer=2,
-    #         base_asset_to_transfer=1,
-    #     )
-    # )
-    print(await ring(WALLET, ORACLE, 10))
+    print(
+        await tick(
+            watchmaker=WALLET,
+            oracle=ORACLE,
+            quote_asset_to_transfer=4,
+            base_asset_to_transfer=1,
+        )
+    )
+    # print(await ring(WALLET, ORACLE, 25))
     # print(
     #     await wind(
     #         timekeeper=WALLET,
@@ -334,7 +336,7 @@ async def main():
     #     )
     # )
     # print(await get_total_amount())
-    # print(await check_alarms([1]))
+    # print(await check_alarms([1, 2, 3]))
     # print(await get_alarm_info("EQAWIJ3mBo990Ui8kinaodH3AlMi6Q3aPuhUNoFySO08uhEP"))
 
 

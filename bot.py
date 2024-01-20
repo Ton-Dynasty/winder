@@ -169,7 +169,8 @@ async def wind_alarms(active_alarms, price, base_bal, quote_bal):
             quote_bal -= alarm_info["need_quote_asset"]
             logger.info(f"Alarm {alarm[0]} Wind Successfully")
 
-        logger.info(f"Alarm {alarm[0]} No Need to Wind")
+        else:
+            logger.info(f"Alarm {alarm[0]} No Need to Wind")
 
 
 async def tick_one_scale(price, base_bal, quote_bal):
@@ -205,11 +206,12 @@ async def main():
             price = await get_ton_usdt_price()
             if price is None:
                 continue
+            price = round(float(price), 9)
             # =========== New Price Get ===========
             logger.info("========== New Price Get ===========")
             logger.info(f"New Price: {price}")
-            base_bal = await get_address_balance(WALLET.address.to_string())
-            quote_bal = await get_token_balance(QUOTE_JETTON_WALLET.to_string())
+            base_bal = int(await get_address_balance(WALLET.address.to_string()))
+            quote_bal = int(await get_token_balance(QUOTE_JETTON_WALLET.to_string()))
             active_alarms = await find_active_alarm()
             logger.info(f"Active Alarms: {active_alarms}")
             if active_alarms == []:

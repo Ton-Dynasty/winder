@@ -46,7 +46,7 @@ async def init():
                 id INT PRIMARY KEY,
                 address VARCHAR(255),
                 state VARCHAR(100),
-                price DECIMAL(10, 2)
+                price DECIMAL(16, 9)
             )
             """
             cursor.execute(create_table_sql)

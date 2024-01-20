@@ -67,7 +67,7 @@ class TonCenterTonClient:
         return await self._run(self.provider.raw_send_message(boc))
 
     async def _run(self, to_run):
-        timeout = aiohttp.ClientTimeout(total=5)
+        timeout = aiohttp.ClientTimeout(total=10)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             func = to_run["func"]
             args = to_run["args"]
