@@ -19,8 +19,6 @@ logger.addHandler(console_handler)
 
 load_dotenv()
 
-MYSQL_DATABASE = os.getenv("MYSQL_DATABASE")
-
 
 async def create_connection():
     try:
@@ -69,7 +67,7 @@ async def get_alarm_from_db():
         if connection is not None and connection.is_connected():
             cursor = connection.cursor()
             select_sql = "SELECT * FROM {}"
-            select_sql = select_sql.format(MYSQL_DATABASE)
+            select_sql = select_sql.format("alarms")
             cursor.execute(select_sql)
             result = {}
             for id, address, state, price in cursor.fetchall():
@@ -99,7 +97,7 @@ async def update_alarm_to_db(alarm_dict):
             VALUES (%s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE address = VALUES(address), state = VALUES(state), price = VALUES(price)
             """
-            update_sql = update_sql.format(MYSQL_DATABASE)
+            update_sql = update_sql.format("alarms")
             insert_list = []
             for alarm_id, alarm_info in alarm_dict.items():
                 insert_list.append(
