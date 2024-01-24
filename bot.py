@@ -1,7 +1,8 @@
 import asyncio
-import json
 import os
 from dotenv import load_dotenv
+import logging
+
 
 from tonsdk.utils import Address
 from tonsdk.contract.wallet import Wallets, WalletVersionEnum
@@ -16,47 +17,57 @@ from oracle_interface import (
 )
 from oracle_interface import to_usdt, to_ton, to_bigint
 from utils import float_conversion, int_conversion
-from market_price import ton_usdt_prices_generator
+from market_price import get_ton_usdt_price
+from mariadb_connector import get_alarm_from_db, update_alarm_to_db
 
 load_dotenv()
+
+# set up logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 THRESHOLD_PRICE = float_conversion(1) * to_usdt(1) // to_ton(1)
 MIN_BASEASSET_THRESHOLD = to_ton(1)
 EXTRA_FEES = to_ton(1)
-ORACLE = Address("kQCFEtu7e-su_IvERBf4FwEXvHISf99lnYuujdo0xYabZQgW")
+ORACLE = Address(os.getenv("ORACLE_ADDRESS"))
 
 MNEMONICS, PUB_K, PRIV_K, WALLET = Wallets.from_mnemonics(
     mnemonics=str(os.getenv("MNEMONICS")).split(" "),
     version=WalletVersionEnum.v4r2,
     workchain=0,
 )
-QUOTE_JETTON_WALLET = Address("kQCQ1B7B7-CrvxjsqgYT90s7weLV-IJB2w08DBslDdrIXucv")
-PATH_TO_ALARM_JSON = "data/alarm.json"
+QUOTE_JETTON_WALLET = Address(os.getenv(("QUOTE_JETTON_WALLET_ADDRESS")))
 
 
 async def load_alarms():
-    with open(PATH_TO_ALARM_JSON, "r") as file:
-        return json.load(file)
+    return await get_alarm_from_db()
 
 
 async def save_alarms(updated_alarms):
-    with open(PATH_TO_ALARM_JSON, "w") as file:
-        json.dump(updated_alarms, file, indent=4)
+    await update_alarm_to_db(updated_alarms)
 
 
 async def find_active_alarm():
     alarms = await load_alarms()
     total_alarms = await get_total_amount()
 
+    if alarms is None:
+        return []
+
     # Determine if there are new alarms and which are active
     alarms_to_check = []
     for i in range(total_alarms):
-        str_i = str(i)
-        if str_i not in alarms or (
-            alarms[str_i]["address"] != "is Mine" and alarms[str_i]["state"] == "active"
+        if i not in alarms or (
+            alarms[i]["address"] != "is Mine" and alarms[i]["state"] == "active"
         ):
-            alarms_to_check.append(str_i)
-    print("alarms: ", alarms_to_check)
+            alarms_to_check.append(i)
+    logger.info(f"Alarms to Check: {alarms_to_check}")
     # Check alarms and get active alarms [(id, address)]
     active_alarms = await check_alarms(alarms_to_check)
 
@@ -64,6 +75,7 @@ async def find_active_alarm():
 
 
 async def estimate(alarm: tuple, price: float, base_bal, quote_bal):
+    logger.info(f"Estimate Alarm {alarm[0]}")
     alarm_info = await get_alarm_info(alarm[1])  # alarm[1] is address
     new_price = float_conversion(price) * to_usdt(1) // to_ton(1)
     old_price = alarm_info["base_asset_price"]
@@ -115,14 +127,15 @@ async def check_balance(
     need_quote: int,
     max_buy_num: int,
 ):
+    logger.info("Check Balance")
     if base_bal < need_base:
-        print("Insufficient base asset balance")
+        logger.info("Insufficient Base Asset Balance")
         return None
     if quote_bal < need_quote:
-        print("Insufficient quote asset balance")
+        logger.info("Insufficient Quote Asset Balance")
         return None
     if max_buy_num == 0:
-        print("Max buy num is 0")
+        logger.info("Max Buy Num is 0")
         return None
 
     # Check if enough balance
@@ -154,9 +167,10 @@ async def wind_alarms(active_alarms, price, base_bal, quote_bal):
             )
             base_bal -= alarm_info["need_base_asset"]
             quote_bal -= alarm_info["need_quote_asset"]
-            print("Alarm", alarm[0], "finished")
+            logger.info(f"Alarm {alarm[0]} Wind Successfully")
 
-        print("Alarm", alarm[0], "no need to wind")
+        else:
+            logger.info(f"Alarm {alarm[0]} No Need to Wind")
 
 
 async def tick_one_scale(price, base_bal, quote_bal):
@@ -187,18 +201,28 @@ async def tick_one_scale(price, base_bal, quote_bal):
 
 
 async def main():
-    price_generator = ton_usdt_prices_generator()
-    async for price in price_generator:
-        print("Price:", price)
-        base_bal = await get_address_balance(WALLET.address.to_string())
-        quote_bal = await get_token_balance(QUOTE_JETTON_WALLET.to_string())
-        active_alarms = await find_active_alarm()
-        print("Active alarms:", active_alarms)
-        if active_alarms == []:
-            print("No active alarms")
-            await tick_one_scale(price, base_bal, quote_bal)
+    while True:
+        try:
+            price = await get_ton_usdt_price()
+            if price is None:
+                continue
+            price = round(float(price), 9)
+            # =========== New Price Get ===========
+            logger.info("========== New Price Get ===========")
+            logger.info(f"New Price: {price}")
+            base_bal = int(await get_address_balance(WALLET.address.to_string()))
+            quote_bal = int(await get_token_balance(QUOTE_JETTON_WALLET.to_string()))
+            active_alarms = await find_active_alarm()
+            logger.info(f"Active Alarms: {active_alarms}")
+            if active_alarms == []:
+                logging.info("No Active Alarms")
+                await tick_one_scale(price, base_bal, quote_bal)
 
-        await wind_alarms(active_alarms, price, base_bal, quote_bal)
+            await wind_alarms(active_alarms, price, base_bal, quote_bal)
+
+        except Exception as e:
+            logger.error(f"Error while running bot {e}")
+            continue
 
 
 if __name__ == "__main__":

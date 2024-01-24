@@ -7,13 +7,24 @@ from tonpy import CellSlice
 from decimal import Decimal
 from typing import Union
 from dotenv import load_dotenv
+import logging
 import os
 import time
 import asyncio
-import json
 
 from utils import float_conversion, int_conversion, to_token
 from ton_center_client import TonCenterTonClient
+from mariadb_connector import get_alarm_from_db, update_alarm_to_db
+
+# set up logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 load_dotenv()
 
@@ -22,14 +33,13 @@ BASEASSET_DECIMALS = 9
 GAS_FEE = to_nano(1, "ton")
 API_KEY = os.getenv("TEST_TONCENTER_API_KEY")
 
-ORACLE = Address("kQCFEtu7e-su_IvERBf4FwEXvHISf99lnYuujdo0xYabZQgW")
+ORACLE = Address(os.getenv("ORACLE_ADDRESS"))
 
 MNEMONICS, PUB_K, PRIV_K, WALLET = Wallets.from_mnemonics(
     mnemonics=str(os.getenv("MNEMONICS")).split(" "),
     version=WalletVersionEnum.v4r2,
     workchain=0,
 )
-PATH_TO_ALARM_JSON = "data/alarm.json"
 
 
 def to_usdt(amount: Union[int, float, str, Decimal]) -> Decimal:
@@ -88,25 +98,31 @@ async def get_token_balance(address: str):
 
 
 async def check_alarms(alarm_id_list: list):
+    logger.info("Checking Alarms State")
     client = TonCenterTonClient(API_KEY)
-    # open alarm.json
-    with open(PATH_TO_ALARM_JSON, "r") as f:
-        alarm_dict = json.load(f)
 
+    # get alarm dict
+    alarm_dict = await get_alarm_from_db()
+    if alarm_dict is None:
+        return []
     # get alarm address bytes
-    tasks = [
-        client.run_get_method(
-            ORACLE.to_string(), "getAlarmAddress", [["num", alarm_id]]
-        )
-        for alarm_id in alarm_id_list
-    ]
-    results = await asyncio.gather(*tasks)
-    address_bytes_list = [result["bytes"] for result in results]
+    address_bytes_list = []
+    # 5 tasks one time
+    for i in range(0, len(alarm_id_list), 5):
+        tasks = [
+            client.run_get_method(
+                ORACLE.to_string(), "getAlarmAddress", [["num", alarm_id]]
+            )
+            for alarm_id in alarm_id_list[i : i + 5]
+        ]
+        logger.info(f"Getting Alarms Address {alarm_id_list[i : i + 5]}")
+        results = await asyncio.gather(*tasks)
+        address_bytes_list += [result["bytes"] for result in results]
 
     # get alarm address
     address_list = []
     for alarm_id, address_bytes in zip(alarm_id_list, address_bytes_list):
-        alarm_info = alarm_dict.get(str(alarm_id))
+        alarm_info = alarm_dict.get(alarm_id)
         if alarm_info and alarm_info.get("address"):
             address_list.append(alarm_info["address"])
         else:
@@ -114,25 +130,32 @@ async def check_alarms(alarm_id_list: list):
             # cell_bytes = base64.b64decode(result[0][1]["bytes"])
             cs = CellSlice(address_bytes)
             address = cs.load_address()
-            alarm_dict[str(alarm_id)] = {"address": address}
+            alarm_dict[alarm_id] = {"address": address}
             address_list.append(address)
 
     # get alarm state
-    tasks = [client.get_address_state(address) for address in address_list]
-    alarm_state_list = await asyncio.gather(*tasks)
+    alarm_state_list = []
+    # 5 tasks one time
+    for i in range(0, len(address_list), 5):
+        tasks = [
+            client.get_address_state(address) for address in address_list[i : i + 5]
+        ]
+        logger.info(f"Checking Alarms State {address_list[i : i + 5]}")
+        alarm_state_list += await asyncio.gather(*tasks)
 
     # update alarm dict
     for alarm_id, alarm_state in zip(alarm_id_list, alarm_state_list):
-        alarm_dict[str(alarm_id)]["state"] = alarm_state
+        alarm_dict[alarm_id]["state"] = alarm_state
+        alarm_dict[alarm_id]["price"] = -1
 
     result = []
     for alarm_id in alarm_id_list:
-        alarm_info = alarm_dict[str(alarm_id)]
+        alarm_info = alarm_dict[alarm_id]
         if alarm_info["state"] == "active":
             result.append((alarm_id, alarm_info["address"]))
-    # save alarm.json
-    with open(PATH_TO_ALARM_JSON, "w") as f:
-        json.dump(alarm_dict, f, indent=4)
+
+    # update alarm dict to db
+    await update_alarm_to_db(alarm_dict)
 
     return result
 
@@ -148,6 +171,9 @@ async def tick(
     expire_at=int(time.time()) + 1000,
     extra_fees=2,
 ):
+    logger.info("Tick")
+    logger.info(f"quote_asset_to_transfer: {quote_asset_to_transfer}")
+    logger.info(f"base_asset_to_transfer: {base_asset_to_transfer}")
     base_asset_price = float_conversion(to_usdt(quote_asset_to_transfer)) // to_ton(
         base_asset_to_transfer
     )
@@ -180,7 +206,7 @@ async def tick(
     )
 
     query = watchmaker.create_transfer_message(
-        to_addr="kQCQ1B7B7-CrvxjsqgYT90s7weLV-IJB2w08DBslDdrIXucv",
+        to_addr=os.getenv("QUOTE_JETTON_WALLET_ADDRESS"),
         amount=to_nano(4, "ton"),
         seqno=int(seqno, 16),
         payload=body,
@@ -199,6 +225,10 @@ async def tick(
 async def wind(
     timekeeper, oracle, alarm_id, buy_num, new_price, need_quoate_asset, need_base_asset
 ):
+    logger.info("Wind")
+    logger.info(f"alarm_id: {alarm_id}")
+    logger.info(f"buy_num: {buy_num}")
+    logger.info(f"new_price: {new_price}")
     client = TonCenterTonClient(API_KEY)
     seqno = await client.run_get_method(timekeeper.address.to_string(), "seqno", [])
     forward_info = (
@@ -223,7 +253,7 @@ async def wind(
         .end_cell()
     )
     query = timekeeper.create_transfer_message(
-        to_addr="kQCQ1B7B7-CrvxjsqgYT90s7weLV-IJB2w08DBslDdrIXucv",
+        to_addr=os.getenv("QUOTE_JETTON_WALLET_ADDRESS"),
         amount=to_bigint(need_base_asset) + GAS_FEE,
         seqno=int(seqno, 16),
         payload=body,
@@ -237,15 +267,15 @@ async def wind(
     wind_result = results[1]
 
     if wind_result["@type"] == "ok":
-        with open(PATH_TO_ALARM_JSON, "r") as f:
-            alarm_dict = json.load(f)
-        alarm_dict[str(alarm_id)] = {
-            "address": "is Mine",
-            "state": "active",
-            "price": to_bigint(new_price),
+        new_price = int_conversion(new_price * to_ton(1) / to_usdt(1))
+        update_alarm_dict = {
+            alarm_id: {
+                "address": "is Mine",
+                "state": "active",
+                "price": round(new_price, 9),
+            }
         }
-        with open(PATH_TO_ALARM_JSON, "w") as f:
-            json.dump(alarm_dict, f, indent=4)
+        await update_alarm_to_db(update_alarm_dict)
 
     return wind_result, alarm_id
 
@@ -255,12 +285,14 @@ async def ring(
     oracle,
     alarm_id,
 ):
+    logger.info("Ring")
+    logger.info(f"alarm_id: {alarm_id}")
     client = TonCenterTonClient(API_KEY)
     seqno = await client.run_get_method(watchmaker.address.to_string(), "seqno", [])
     body = (
         begin_cell()
         .store_uint(0xC3510A29, 32)
-        .store_uint(0, 257)
+        .store_uint(alarm_id, 257)
         .store_uint(alarm_id, 257)
         .end_cell()
     )
@@ -272,25 +304,26 @@ async def ring(
     )
     boc = query["message"].to_boc(False)
 
-    with open(PATH_TO_ALARM_JSON, "r") as f:
-        alarm_dict = json.load(f)
-    alarm_dict[str(alarm_id)]["state"] = "uninitialied"
-    with open(PATH_TO_ALARM_JSON, "w") as f:
-        json.dump(alarm_dict, f, indent=4)
+    update_alarm_dict = {
+        alarm_id: {"address": "is Mine", "state": "uninitialied", "price": -1}
+    }
+    result = await client.send_boc(boc)
 
-    return await client.send_boc(boc)
+    await update_alarm_to_db(update_alarm_dict)
+
+    return result
 
 
 async def main():
-    # print(
-    #     await tick(
-    #         watchmaker=WALLET,
-    #         oracle=ORACLE,
-    #         quote_asset_to_transfer=2,
-    #         base_asset_to_transfer=1,
-    #     )
-    # )
-    print(await ring(WALLET, ORACLE, 10))
+    print(
+        await tick(
+            watchmaker=WALLET,
+            oracle=ORACLE,
+            quote_asset_to_transfer=4,
+            base_asset_to_transfer=1,
+        )
+    )
+    # print(await ring(WALLET, ORACLE, 25))
     # print(
     #     await wind(
     #         timekeeper=WALLET,
@@ -303,7 +336,7 @@ async def main():
     #     )
     # )
     # print(await get_total_amount())
-    # print(await check_alarms([1]))
+    # print(await check_alarms([1, 2, 3]))
     # print(await get_alarm_info("EQAWIJ3mBo990Ui8kinaodH3AlMi6Q3aPuhUNoFySO08uhEP"))
 
 

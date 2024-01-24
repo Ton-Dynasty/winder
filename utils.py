@@ -9,7 +9,7 @@ def float_conversion(value, precision=64):
 
 
 def int_conversion(value):
-    return Decimal(value) // (Decimal(2) ** 64)
+    return Decimal(value) / (Decimal(2) ** 64)
 
 
 def to_token(value, decimals):
