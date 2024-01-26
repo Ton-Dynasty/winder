@@ -32,7 +32,9 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
-THRESHOLD_PRICE = float_conversion(1) * to_usdt(1) // to_ton(1)
+THRESHOLD_PRICE = (
+    float_conversion(os.getenv("THRESHOLD_PRICE")) * to_usdt(1) // to_ton(1)
+)
 MIN_BASEASSET_THRESHOLD = to_ton(1)
 EXTRA_FEES = to_ton(1)
 ORACLE = Address(os.getenv("ORACLE_ADDRESS"))
