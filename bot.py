@@ -32,7 +32,9 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
-THRESHOLD_PRICE = float_conversion(1) * to_usdt(1) // to_ton(1)
+THRESHOLD_PRICE = (
+    float_conversion(os.getenv("THRESHOLD_PRICE")) * to_usdt(1) // to_ton(1)
+)
 MIN_BASEASSET_THRESHOLD = to_ton(1)
 EXTRA_FEES = to_ton(1)
 ORACLE = Address(os.getenv("ORACLE_ADDRESS"))
@@ -117,6 +119,9 @@ async def estimate(alarm: tuple, price: float, base_bal, quote_bal):
         "need_quote_asset": to_bigint(max(0, need_quote_asset)),
         "need_base_asset": to_bigint(max(0, need_base_asset)),
         "buy_num": buy_num,
+        "price_delta": round(
+            float(int_conversion(price_delta * to_ton(1) / to_usdt(1))), 9
+        ),
     }
 
 
@@ -150,27 +155,119 @@ async def check_balance(
     return buy_num
 
 
+async def get_max_profit_dp(profitable_alarms, base_bal, quote_bal, fee=0.55):
+    try:
+        n = len(profitable_alarms)
+        base_unit = to_bigint(to_ton(1))
+        quote_unit = to_bigint(to_usdt(1))
+        logger.info(f"Base Bal: {base_bal}")
+        logger.info(f"Quote Bal: {quote_bal}")
+        logger.info(f"Fee: {fee}")
+        # Initialize DP table and strategy table
+        dp = [
+            [
+                [0 for _ in range(base_bal // base_unit + 1)]
+                for _ in range(quote_bal // quote_unit + 1)
+            ]
+            for _ in range(n + 1)
+        ]
+        strategy = [
+            [
+                [(0, 0) for _ in range(base_bal // base_unit + 1)]
+                for _ in range(quote_bal // quote_unit + 1)
+            ]
+            for _ in range(n + 1)
+        ]
+
+        # Fill DP table
+        for i in range(1, n + 1):
+            for q in range(0, quote_bal, quote_unit):
+                q_idx = q // quote_unit
+                for b in range(0, base_bal, base_unit):
+                    b_idx = b // base_unit
+                    alarm = profitable_alarms[i - 1]
+                    max_buy = min(
+                        alarm["buy_num"],
+                        q // alarm["need_quote_asset"],
+                        b // alarm["need_base_asset"],
+                    )
+
+                    for k in range(max_buy + 1):
+                        cost_quote = k * alarm["need_quote_asset"]
+                        cost_base = k * alarm["need_base_asset"]
+                        profit = k * alarm["price_delta"] - (fee if k > 0 else 0)
+
+                        if (
+                            q >= cost_quote
+                            and b >= cost_base
+                            and dp[i][q_idx][b_idx]
+                            < dp[i - 1][(q - cost_quote) // quote_unit][
+                                (b - cost_base) // base_unit
+                            ]
+                            + profit
+                        ):
+                            dp[i][q_idx][b_idx] = (
+                                dp[i - 1][(q - cost_quote) // quote_unit][
+                                    (b - cost_base) // base_unit
+                                ]
+                                + profit
+                            )
+                            strategy[i][q_idx][b_idx] = (i - 1, k)
+
+        # Retrieve the buying strategy
+        final_strategy = []
+        i, q, b = n, quote_bal, base_bal
+        while i > 0 and (q > 0 or b > 0):
+            q_idx = q // quote_unit
+            b_idx = b // base_unit
+            alarm_idx, quantity = strategy[i][q_idx][b_idx]
+            if quantity > 0:
+                alarm = profitable_alarms[alarm_idx]
+                final_strategy.append(alarm)
+                q -= quantity * alarm["need_quote_asset"]
+                b -= quantity * alarm["need_base_asset"]
+            i -= 1
+
+        final_strategy.reverse()  # Reverse to get the order of buying
+
+        return dp[-1][-1][-1], final_strategy
+    except Exception as e:
+        logger.error(f"Error while getting max profit {e}")
+        return 0, []
+
+
 async def wind_alarms(active_alarms, price, base_bal, quote_bal):
     if active_alarms == []:
         return
+    profitable_alarms = []
     for alarm in active_alarms:
         alarm_info = await estimate(alarm, price, base_bal, quote_bal)
         if alarm_info:
-            await wind(
-                timekeeper=WALLET,
-                oracle=ORACLE,
-                alarm_id=int(alarm_info["alarm_id"]),
-                buy_num=alarm_info["buy_num"],
-                new_price=alarm_info["new_price"],
-                need_quoate_asset=alarm_info["need_quote_asset"],
-                need_base_asset=alarm_info["need_base_asset"],
-            )
-            base_bal -= alarm_info["need_base_asset"]
-            quote_bal -= alarm_info["need_quote_asset"]
-            logger.info(f"Alarm {alarm[0]} Wind Successfully")
+            profitable_alarms.append(alarm_info)
+    if profitable_alarms == []:
+        logger.info("No Profitable Alarms")
+    else:  # Wind alarms
+        logger.info(f"Profitable Alarms: {profitable_alarms}")
 
-        else:
-            logger.info(f"Alarm {alarm[0]} No Need to Wind")
+    max_profit, strategy = await get_max_profit_dp(
+        profitable_alarms, base_bal, quote_bal
+    )
+    logger.info(f"Optimization Strategy: {strategy}")
+    logger.info(f"Max Profit: {max_profit}")
+
+    for alarm_info in strategy:
+        await wind(
+            timekeeper=WALLET,
+            oracle=ORACLE,
+            alarm_id=int(alarm_info["alarm_id"]),
+            buy_num=alarm_info["buy_num"],
+            new_price=alarm_info["new_price"],
+            need_quoate_asset=alarm_info["need_quote_asset"],
+            need_base_asset=alarm_info["need_base_asset"],
+        )
+        base_bal -= alarm_info["need_base_asset"]
+        quote_bal -= alarm_info["need_quote_asset"]
+        logger.info(f"Alarm {alarm_info['alarm_id']} Wind Successfully")
 
 
 async def tick_one_scale(price, base_bal, quote_bal):
