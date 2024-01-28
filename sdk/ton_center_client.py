@@ -2,7 +2,7 @@ from tonsdk.provider import ToncenterClient, prepare_address, address_state
 
 import aiohttp
 import json
-from typing import Dict, Optional
+from typing import Dict
 
 
 class ToncenterWrongResult(Exception):
@@ -10,7 +10,7 @@ class ToncenterWrongResult(Exception):
         self.code = code
 
 
-class TonCenterTonClient:
+class TonCenterClient:
     def __init__(self, api_key, testnet=True):
         if testnet:
             self.provider = ToncenterClient(
@@ -52,14 +52,23 @@ class TonCenterTonClient:
 
         return result
 
-    async def get_token_data(self, address):
-        req = {
-            "func": self.__jsonrpc_request,
-            "args": ["getTokenData"],
-            "kwargs": {"params": {"address": address}},
-        }
-        result = await self._run(req)
-        return result
+    ## Todo
+    async def get_token_balance(self, master_address, account_address):
+        # get jetton wallet address from master address
+        jetton_wallet_address = await self.run_get_method(
+            addr=master_address,
+            method="get_wallet_address",
+            stack=[[slice, account_address]],
+        )
+        print(f"jetton_wallet_address: {jetton_wallet_address}")
+        # get token balance from jetton wallet address
+        # req = {
+        #     "func": self.__jsonrpc_request,
+        #     "args": ["getTokenData"],
+        #     "kwargs": {"params": {"address": address}},
+        # }
+        # result = await self._run(req)
+        # return result
 
     async def get_address_information(self, address):
         address = prepare_address(address)

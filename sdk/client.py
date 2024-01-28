@@ -5,40 +5,43 @@ from tonsdk.utils import Address
 from tonsdk.boc import Cell
 from tonsdk.contract.wallet import Wallets
 from typing import Dict, Tuple, Optional, Literal, Callable, TypedDict
-from arithmetic import FixedFloat
+from .arithmetic import FixedFloat
 from utils import to_token
 from os import getenv
+from .ton_center_client import TonCenterClient
 
 OracleMetadata = TypedDict(
     "OracleMetadata",
     {
-        "base_asset_address": str,
-        "quote_asset_address": str,
+        "base_asset_address": Address,
+        "quote_asset_address": Address,
         "base_asset_decimals": int,
         "quote_asset_decimals": int,
         "min_base_asset_threshold": int,
-        "base_asset_wallet_address": str,
-        "quote_asset_wallet_address": str,
+        "base_asset_wallet_address": Address,
+        "quote_asset_wallet_address": Address,
+        "is_initialized": bool,
     },
 )
 
 
 class TicTonAsyncClient:
-    async def __init__(
+    def __init__(
         self,
         mnemonics: Optional[str] = None,
         oracle_addr: Optional[str] = None,
         toncenter_api_key: Optional[str] = None,
-        wallet_version: Optional[
-            Literal["v2r1", "v2r2", "v3r1", "v3r2", "v4r1", "v4r2", "hv2"]
-        ] = None,
+        wallet_version: Literal[
+            "v2r1", "v2r2", "v3r1", "v3r2", "v4r1", "v4r2", "hv2"
+        ] = "v4r2",
         *,
+        testnet: bool = True,
         logger: Optional[logging.Logger] = None
     ) -> None:
         mnemonics = getenv("TICTON_WALLET_MNEMONICS", mnemonics)
-        wallet_version = getenv("TICTON_WALLET_VERSION", wallet_version or "v4r2")
+        wallet_version = getenv("TICTON_WALLET_VERSION", wallet_version)
         oracle_addr = getenv("TICTON_ORACLE_ADDRESS", oracle_addr)
-
+        toncenter_api_key = getenv("TICTON_TONCENTER_API_KEY", toncenter_api_key)
         assert (
             mnemonics is not None
         ), "mnemonics must be provided, you can either pass it as a parameter or set TICTON_WALLET_MNEMONICS environment variable"
@@ -51,14 +54,29 @@ class TicTonAsyncClient:
         self.logger = logger or logging.getLogger(__name__)
 
         # TODO: import toncenter client
-        self.toncenter = None
+        self.toncenter = TonCenterClient(toncenter_api_key, testnet=testnet)
 
+    async def init(self):
         self.metadata = await self._get_oracle_metadata()
 
     async def _get_oracle_metadata(self) -> OracleMetadata:
         """
         get the oracle's metadata
         """
+        metedata: OracleMetadata = {
+            "base_asset_address": Address(
+                "0:0000000000000000000000000000000000000000000000000000000000000000"
+            ),
+            "quote_asset_address": "",
+            "base_asset_decimals": 9,
+            "quote_asset_decimals": 6,
+            "min_base_asset_threshold": 1 * 10**9,
+            "base_asset_wallet_address": "",
+            "quote_asset_wallet_address": "",
+            "is_initialized": True,
+        }
+
+        return metedata
         raise NotImplementedError
 
     async def _convert_price(self, price: float) -> FixedFloat:
@@ -82,6 +100,17 @@ class TicTonAsyncClient:
         quote_asset_balance : Decimal
             The balance of quoteAsset in nanoTON
         """
+        if (
+            self.metadata["base_asset_wallet_address"]
+            == "0:0000000000000000000000000000000000000000000000000000000000000000"
+        ):
+            base_asset_balance = await self.toncenter.get_address_balance(
+                self.wallet.address
+            )
+        else:
+            base_asset_balance = await self.toncenter.get_token_balance(
+                self.metadata["base_asset_wallet_address"], self.wallet.address
+            )
         raise NotImplementedError
 
     async def _send(
