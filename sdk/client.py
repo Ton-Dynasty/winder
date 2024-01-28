@@ -67,7 +67,9 @@ class TicTonAsyncClient:
             "base_asset_address": Address(
                 "0:0000000000000000000000000000000000000000000000000000000000000000"
             ),
-            "quote_asset_address": "",
+            "quote_asset_address": Address(
+                "kQBqSpvo4S87mX9tjHaG4zhYZeORhVhMapBJpnMZ64jhrP-A"
+            ),
             "base_asset_decimals": 9,
             "quote_asset_decimals": 6,
             "min_base_asset_threshold": 1 * 10**9,
@@ -100,18 +102,31 @@ class TicTonAsyncClient:
         quote_asset_balance : Decimal
             The balance of quoteAsset in nanoTON
         """
-        if (
-            self.metadata["base_asset_wallet_address"]
-            == "0:0000000000000000000000000000000000000000000000000000000000000000"
-        ):
-            base_asset_balance = await self.toncenter.get_address_balance(
-                self.wallet.address
-            )
-        else:
-            base_asset_balance = await self.toncenter.get_token_balance(
-                self.metadata["base_asset_wallet_address"], self.wallet.address
-            )
-        raise NotImplementedError
+
+        async def _get_balance(
+            master_address: Address, account_address: Address
+        ) -> Decimal:
+            if (
+                master_address.to_string()
+                == "0:0000000000000000000000000000000000000000000000000000000000000000"
+            ):
+                balance = await self.toncenter.get_address_balance(
+                    account_address.to_string()
+                )
+            else:
+                balance = await self.toncenter.get_token_balance(
+                    master_address, account_address
+                )
+
+            return balance
+
+        base_asset_balance = await _get_balance(
+            self.metadata["base_asset_address"], self.wallet.address
+        )
+        quote_asset_balance = await _get_balance(
+            self.metadata["quote_asset_address"], self.wallet.address
+        )
+        return [base_asset_balance, quote_asset_balance]
 
     async def _send(
         self, amount: int, seqno: int, body: Cell, *, dry_run: bool = False

@@ -16,7 +16,9 @@ async def init_test():
     await client.init()
 
     print(client.metadata)
-    await client._get_user_balance()
+    base_bal, quote_bal = await client._get_user_balance()
+    print("base_bal", base_bal)
+    print("quote_bal", quote_bal)
 
 
 async def main():

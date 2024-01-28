@@ -1,8 +1,12 @@
+import base64
 from tonsdk.provider import ToncenterClient, prepare_address, address_state
 
+from tonsdk.boc import begin_cell, Cell
 import aiohttp
 import json
 from typing import Dict
+
+from tonsdk.utils import Address
 
 
 class ToncenterWrongResult(Exception):
@@ -54,21 +58,34 @@ class TonCenterClient:
 
     ## Todo
     async def get_token_balance(self, master_address, account_address):
+        request_stack = [
+            [
+                "tvm.Slice",
+                base64.b64encode(
+                    begin_cell().store_address(account_address).end_cell().to_boc()
+                ).decode(),
+            ]
+        ]
         # get jetton wallet address from master address
-        jetton_wallet_address = await self.run_get_method(
-            addr=master_address,
+        stack = await self.run_get_method(
+            addr=master_address.to_string(),
             method="get_wallet_address",
-            stack=[[slice, account_address]],
+            stack=request_stack,
         )
-        print(f"jetton_wallet_address: {jetton_wallet_address}")
+        jetton_wallet_address = (
+            Cell.one_from_boc(base64.b64decode(stack["bytes"]))
+            .begin_parse()
+            .read_msg_addr()
+            .to_string(True, True, True)
+        )
         # get token balance from jetton wallet address
-        # req = {
-        #     "func": self.__jsonrpc_request,
-        #     "args": ["getTokenData"],
-        #     "kwargs": {"params": {"address": address}},
-        # }
-        # result = await self._run(req)
-        # return result
+        req = {
+            "func": self.__jsonrpc_request,
+            "args": ["getTokenData"],
+            "kwargs": {"params": {"address": jetton_wallet_address}},
+        }
+        result = await self._run(req)
+        return result["balance"]
 
     async def get_address_information(self, address):
         address = prepare_address(address)
