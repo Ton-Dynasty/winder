@@ -29,8 +29,14 @@ async def ring_test(alarm_id):
     print(ring)
 
 
+async def wind_test(alram_id):
+    client = await init_test()
+    wind = await client.wind(alram_id, 1, 1)
+    print(wind)
+
+
 async def main():
-    await init_test()
+    await wind_test(32)
 
 
 if __name__ == "__main__":

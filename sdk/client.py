@@ -35,6 +35,7 @@ class TicTonAsyncClient:
         wallet_version: Literal[
             "v2r1", "v2r2", "v3r1", "v3r2", "v4r1", "v4r2", "hv2"
         ] = "v4r2",
+        threshold_price: Optional[float] = None,
         *,
         logger: Optional[logging.Logger] = None,
     ) -> None:
@@ -44,6 +45,8 @@ class TicTonAsyncClient:
 
         # TODO: import toncenter client
         self.toncenter = toncenter
+
+        self.threshold_price = threshold_price
         self.metadata = metadata
 
     @classmethod
@@ -55,6 +58,7 @@ class TicTonAsyncClient:
         wallet_version: Literal[
             "v2r1", "v2r2", "v3r1", "v3r2", "v4r1", "v4r2", "hv2"
         ] = "v4r2",
+        threshold_price: Optional[float] = None,
         *,
         testnet: bool = True,
         logger: Optional[logging.Logger] = None,
@@ -63,6 +67,7 @@ class TicTonAsyncClient:
         wallet_version = getenv("TICTON_WALLET_VERSION", wallet_version)
         oracle_addr = getenv("TICTON_ORACLE_ADDRESS", oracle_addr)
         toncenter_api_key = getenv("TICTON_TONCENTER_API_KEY", toncenter_api_key)
+        threshold_price = getenv("TICTON_THRESHOLD_PRICE", threshold_price)
         assert (
             mnemonics is not None
         ), "mnemonics must be provided, you can either pass it as a parameter or set TICTON_WALLET_MNEMONICS environment variable"
@@ -82,6 +87,7 @@ class TicTonAsyncClient:
             mnemonics=mnemonics,
             oracle_addr=oracle_addr,
             wallet_version=wallet_version,
+            threshold_price=threshold_price,
             logger=logger,
         )
 
@@ -198,10 +204,53 @@ class TicTonAsyncClient:
         return result
 
     async def _estimate_wind(self, alarm_id: int, buy_num: int, new_price: float):
-        pass
+        alarm_address = await self.toncenter.get_alarm_address(
+            self.oracle.to_string(), alarm_id
+        )
+        alarm_state = await self.toncenter.get_address_state(alarm_address)
+        assert alarm_state == "active", "alarm is not active"
+
+        alarm_info = await self.toncenter.get_alarm_info(alarm_address)
+        print("alarm_info:", alarm_info)
+
+        new_price_ff = await self._convert_price(new_price)
+        old_price_ff = FixedFloat(alarm_info["base_asset_price"], skip_scale=True)
+        price_delta = abs(new_price_ff - old_price_ff)
+
+        if price_delta < self.threshold_price:
+            return None
+
+        if new_price_ff > old_price_ff:
+            # Timekeeper will pay quote asset and buy base asset
+            need_quote_asset = (
+                new_price_ff * 2 * self.metadata["min_base_asset_threshold"]
+                + old_price_ff * self.metadata["min_base_asset_threshold"]
+            ).to_int()
+            need_base_asset = self.metadata["min_base_asset_threshold"] + 1 * 10**9
+            max_buy_num = alarm_info["base_asset_scale"]
+        else:
+            # Timekeeper will pay base asset and buy quote asset
+            need_quote_asset = (
+                new_price_ff * 2 * self.metadata["min_base_asset_threshold"]
+                - old_price_ff * self.metadata["min_base_asset_threshold"]
+            ).to_int()
+            need_base_asset = (
+                self.metadata["min_base_asset_threshold"] * 3 + 1 * 10**9
+            )
+            max_buy_num = alarm_info["quote_asset_scale"]
+
+        assert buy_num <= max_buy_num, "buy_num is too large"
+
+        return (need_base_asset * buy_num, need_quote_asset * buy_num)
 
     async def _can_afford(self, need_base_asset: Decimal, need_quote_asset: Decimal):
-        pass
+        base_asset_balance, quote_asset_balance = await self._get_user_balance()
+        if (
+            need_base_asset > base_asset_balance
+            or need_quote_asset > quote_asset_balance
+        ):
+            return False
+        return True
 
     async def tick(
         self, price: float, *, timeout: int = 1000, extra_ton: float = 2, **kwargs
@@ -337,6 +386,7 @@ class TicTonAsyncClient:
         >>> client = TicTonAsyncClient(...)
         >>> await client.wind(123, 1, 5)
         """
+
         raise NotImplementedError
 
     async def subscribe(

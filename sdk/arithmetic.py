@@ -135,6 +135,9 @@ class FixedFloat:
             )
         raise TypeError(f"Cannot divide FixedFloat and {type(other)}")
 
+    def __abs__(self) -> "FixedFloat":
+        return FixedFloat(abs(self.raw_value), precision=self.precision, base=self.base)
+
     def __eq__(self, other) -> bool:
         if isinstance(other, FixedFloat):
             return self.raw_value == other.raw_value
