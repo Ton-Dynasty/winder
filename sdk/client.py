@@ -4,6 +4,7 @@ import time
 from tonsdk.utils import Address, bytes_to_b64str
 from tonsdk.boc import Cell, begin_cell
 from tonsdk.contract.wallet import Wallets
+from tonpy import CellSlice
 from typing import Dict, Tuple, Optional, Literal, Callable, TypedDict
 from .arithmetic import FixedFloat
 from utils import to_token
@@ -98,23 +99,32 @@ class TicTonAsyncClient:
         """
         get the oracle's metadata
         """
-        metedata: OracleMetadata = {
-            "base_asset_address": Address(
-                "0:0000000000000000000000000000000000000000000000000000000000000000"
-            ),
-            "quote_asset_address": Address(
-                "kQBqSpvo4S87mX9tjHaG4zhYZeORhVhMapBJpnMZ64jhrP-A"
-            ),
-            "base_asset_decimals": 9,
-            "quote_asset_decimals": 6,
-            "min_base_asset_threshold": 1 * 10**9,
-            "base_asset_wallet_address": "",
-            "quote_asset_wallet_address": "",
-            "is_initialized": True,
+        metadata_res = await client.get_oracle_data(oracle_addr, "getOracleData", [])
+        base_asset_address = CellSlice(metadata_res[0][1]["bytes"]).load_address()
+        quote_asset_address = CellSlice(metadata_res[1][1]["bytes"]).load_address()
+        base_asset_decimals = int(metadata_res[2][1], 16)
+        quote_asset_decimals = int(metadata_res[3][1], 16)
+        min_base_asset_threshold = int(metadata_res[4][1], 16)
+        base_asset_wallet_address = CellSlice(
+            metadata_res[5][1]["bytes"]
+        ).load_address()
+        quote_asset_wallet_address = CellSlice(
+            metadata_res[6][1]["bytes"]
+        ).load_address()
+        is_initialized = bool(metadata_res[7][1])
+
+        metadata: OracleMetadata = {
+            "base_asset_address": Address(base_asset_address),
+            "quote_asset_address": Address(quote_asset_address),
+            "base_asset_decimals": base_asset_decimals,
+            "quote_asset_decimals": quote_asset_decimals,
+            "min_base_asset_threshold": min_base_asset_threshold,
+            "base_asset_wallet_address": Address(base_asset_wallet_address),
+            "quote_asset_wallet_address": Address(quote_asset_wallet_address),
+            "is_initialized": is_initialized,
         }
 
-        return metedata
-        raise NotImplementedError
+        return metadata
 
     async def _convert_price(self, price: float) -> FixedFloat:
         """
@@ -206,38 +216,21 @@ class TicTonAsyncClient:
         return result
 
     async def _estimate_from_oracle_get_method(
-        self, alarm_address: str, buy_num: int, new_price: float
+        self, alarm_address: str, buy_num: int, new_price: int
     ):
-        alarm_info = await self.toncenter.get_alarm_info(alarm_address)
-
-        new_price_ff = await self._convert_price(new_price)
-        old_price_ff = FixedFloat(alarm_info["base_asset_price"], skip_scale=True)
-
-        if new_price_ff > old_price_ff:
-            # self.wallet will pay quote asset and buy base asset
-            need_quote_asset = (
-                new_price_ff * 2 * self.metadata["min_base_asset_threshold"]
-                + old_price_ff * self.metadata["min_base_asset_threshold"]
-            ).to_float()
-            need_base_asset = FixedFloat(
-                self.metadata["min_base_asset_threshold"]
-            ).to_float()
-            max_buy_num = alarm_info["base_asset_scale"]
-        else:
-            # self.wallet will pay base asset and buy quote asset
-            need_quote_asset = (
-                new_price_ff * 2 * self.metadata["min_base_asset_threshold"]
-                - old_price_ff * self.metadata["min_base_asset_threshold"]
-            ).to_float()
-            need_base_asset = FixedFloat(
-                self.metadata["min_base_asset_threshold"]
-            ).to_float()
-            max_buy_num = alarm_info["quote_asset_scale"]
-        can_buy = True
-        if buy_num > max_buy_num:
-            can_buy = False
-
-        return (can_buy, need_base_asset + 1 * 10**9, need_quote_asset)
+        result = await self.toncenter.get_estimate(
+            alarm_address,
+            "getEstimate",
+            [
+                ["num", buy_num],
+                [
+                    "num",
+                    new_price,
+                ],
+            ],
+        )
+        print("result", result)
+        return None
 
     async def _estimate_wind(self, alarm_id: int, buy_num: int, new_price: float):
         alarm_address = await self.toncenter.get_alarm_address(
@@ -261,11 +254,11 @@ class TicTonAsyncClient:
             need_base_asset,
             need_quote_asset,
         ) = await self._estimate_from_oracle_get_method(
-            alarm_address, buy_num, new_price
+            alarm_address, buy_num, int(new_price_ff.raw_value)
         )
-        assert can_buy, "buy_num is too large"
-
-        return (need_base_asset, need_quote_asset)
+        # assert can_buy, "buy_num is too large"
+        #
+        # return (need_base_asset, need_quote_asset)
 
     async def _can_afford(self, need_base_asset: Decimal, need_quote_asset: Decimal):
         base_asset_balance, quote_asset_balance = await self._get_user_balance()

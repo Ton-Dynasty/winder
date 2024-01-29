@@ -13,6 +13,7 @@ async def init_test():
         toncenter_api_key=os.getenv("TEST_TONCENTER_API_KEY"),
         testnet=True,
     )
+    # print(client.metadata)
 
     return client
 
@@ -36,10 +37,11 @@ async def wind_test(alram_id):
 
 
 async def main():
+    # await init_test()
     # await tick_test()
-    # await wind_test(55)
+    await wind_test(0)
     # 16, 20, 23,24,26,27,28,29,30,33~48
-    await ring_test(56)
+    # await ring_test(56)
     # await ring_test(20)
 
 

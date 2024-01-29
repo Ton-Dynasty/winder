@@ -38,6 +38,21 @@ class TonCenterClient:
 
         return result[0][1]
 
+    async def get_oracle_data(self, addr: str, method: str, stack: list):
+        addr = prepare_address(addr)
+        result = await self._run(self.provider.raw_run_method(addr, method, stack))
+        if result.get("@type") == "smc.runResult" and "stack" in result:
+            result = result["stack"]
+
+        return result
+
+    async def get_estimate(self, addr: str, method: str, stack: list):
+        addr = prepare_address(addr)
+        result = await self._run(self.provider.raw_run_method(addr, method, stack))
+        if result.get("@type") == "smc.runResult" and "stack" in result:
+            result = result["stack"]
+        return result
+
     async def get_address_state(self, address):
         req = {
             "func": self.__jsonrpc_request,
