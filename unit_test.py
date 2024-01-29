@@ -31,12 +31,16 @@ async def ring_test(alarm_id):
 
 async def wind_test(alram_id):
     client = await init_test()
-    wind = await client.wind(alram_id, 1, 1)
+    wind = await client.wind(alram_id, 1, 5.0)
     print(wind)
 
 
 async def main():
-    await wind_test(32)
+    # await tick_test()
+    # await wind_test(55)
+    # 16, 20, 23,24,26,27,28,29,30,33~48
+    await ring_test(56)
+    # await ring_test(20)
 
 
 if __name__ == "__main__":

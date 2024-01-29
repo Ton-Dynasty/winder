@@ -1,7 +1,7 @@
 from decimal import Decimal
 import logging
 import time
-from tonsdk.utils import Address
+from tonsdk.utils import Address, bytes_to_b64str
 from tonsdk.boc import Cell, begin_cell
 from tonsdk.contract.wallet import Wallets
 from typing import Dict, Tuple, Optional, Literal, Callable, TypedDict
@@ -35,7 +35,7 @@ class TicTonAsyncClient:
         wallet_version: Literal[
             "v2r1", "v2r2", "v3r1", "v3r2", "v4r1", "v4r2", "hv2"
         ] = "v4r2",
-        threshold_price: Optional[float] = None,
+        threshold_price: float = 0.01,
         *,
         logger: Optional[logging.Logger] = None,
     ) -> None:
@@ -58,7 +58,7 @@ class TicTonAsyncClient:
         wallet_version: Literal[
             "v2r1", "v2r2", "v3r1", "v3r2", "v4r1", "v4r2", "hv2"
         ] = "v4r2",
-        threshold_price: Optional[float] = None,
+        threshold_price: float = 0.01,
         *,
         testnet: bool = True,
         logger: Optional[logging.Logger] = None,
@@ -155,7 +155,7 @@ class TicTonAsyncClient:
                     master_address, account_address
                 )
 
-            return balance
+            return Decimal(balance)
 
         base_asset_balance = await _get_balance(
             self.metadata["base_asset_address"], self.wallet.address
@@ -189,6 +189,7 @@ class TicTonAsyncClient:
         dry_run : bool
             Whether to call toncenter simulation api or not
         """
+        print("to_address", to_address)
         if dry_run:
             result = []
         else:
@@ -198,10 +199,45 @@ class TicTonAsyncClient:
                 seqno=seqno,
                 payload=body,
             )
+            print("body", bytes_to_b64str(query["message"].to_boc(False)))
             boc = query["message"].to_boc(False)
             result = await self.toncenter.send_boc(boc)
 
         return result
+
+    async def _estimate_from_oracle_get_method(
+        self, alarm_address: str, buy_num: int, new_price: float
+    ):
+        alarm_info = await self.toncenter.get_alarm_info(alarm_address)
+
+        new_price_ff = await self._convert_price(new_price)
+        old_price_ff = FixedFloat(alarm_info["base_asset_price"], skip_scale=True)
+
+        if new_price_ff > old_price_ff:
+            # self.wallet will pay quote asset and buy base asset
+            need_quote_asset = (
+                new_price_ff * 2 * self.metadata["min_base_asset_threshold"]
+                + old_price_ff * self.metadata["min_base_asset_threshold"]
+            ).to_float()
+            need_base_asset = FixedFloat(
+                self.metadata["min_base_asset_threshold"]
+            ).to_float()
+            max_buy_num = alarm_info["base_asset_scale"]
+        else:
+            # self.wallet will pay base asset and buy quote asset
+            need_quote_asset = (
+                new_price_ff * 2 * self.metadata["min_base_asset_threshold"]
+                - old_price_ff * self.metadata["min_base_asset_threshold"]
+            ).to_float()
+            need_base_asset = FixedFloat(
+                self.metadata["min_base_asset_threshold"]
+            ).to_float()
+            max_buy_num = alarm_info["quote_asset_scale"]
+        can_buy = True
+        if buy_num > max_buy_num:
+            can_buy = False
+
+        return (can_buy, need_base_asset + 1 * 10**9, need_quote_asset)
 
     async def _estimate_wind(self, alarm_id: int, buy_num: int, new_price: float):
         alarm_address = await self.toncenter.get_alarm_address(
@@ -211,7 +247,7 @@ class TicTonAsyncClient:
         assert alarm_state == "active", "alarm is not active"
 
         alarm_info = await self.toncenter.get_alarm_info(alarm_address)
-        print("alarm_info:", alarm_info)
+        print("alarm_info", alarm_info)
 
         new_price_ff = await self._convert_price(new_price)
         old_price_ff = FixedFloat(alarm_info["base_asset_price"], skip_scale=True)
@@ -220,33 +256,22 @@ class TicTonAsyncClient:
         if price_delta < self.threshold_price:
             return None
 
-        if new_price_ff > old_price_ff:
-            # Timekeeper will pay quote asset and buy base asset
-            need_quote_asset = (
-                new_price_ff * 2 * self.metadata["min_base_asset_threshold"]
-                + old_price_ff * self.metadata["min_base_asset_threshold"]
-            ).to_int()
-            need_base_asset = self.metadata["min_base_asset_threshold"] + 1 * 10**9
-            max_buy_num = alarm_info["base_asset_scale"]
-        else:
-            # Timekeeper will pay base asset and buy quote asset
-            need_quote_asset = (
-                new_price_ff * 2 * self.metadata["min_base_asset_threshold"]
-                - old_price_ff * self.metadata["min_base_asset_threshold"]
-            ).to_int()
-            need_base_asset = (
-                self.metadata["min_base_asset_threshold"] * 3 + 1 * 10**9
-            )
-            max_buy_num = alarm_info["quote_asset_scale"]
+        (
+            can_buy,
+            need_base_asset,
+            need_quote_asset,
+        ) = await self._estimate_from_oracle_get_method(
+            alarm_address, buy_num, new_price
+        )
+        assert can_buy, "buy_num is too large"
 
-        assert buy_num <= max_buy_num, "buy_num is too large"
-
-        return (need_base_asset * buy_num, need_quote_asset * buy_num)
+        return (need_base_asset, need_quote_asset)
 
     async def _can_afford(self, need_base_asset: Decimal, need_quote_asset: Decimal):
         base_asset_balance, quote_asset_balance = await self._get_user_balance()
+        gas_fee = 1 * 10**9
         if (
-            need_base_asset > base_asset_balance
+            need_base_asset + gas_fee > base_asset_balance
             or need_quote_asset > quote_asset_balance
         ):
             return False
@@ -287,6 +312,7 @@ class TicTonAsyncClient:
             extra_ton, self.metadata["base_asset_decimals"]
         )
         base_asset_price = int(base_asset_price.raw_value)
+        print(f"base_asset_price: {base_asset_price}")
         quote_asset_transfered = quote_asset_transfered.to_float()
         forward_ton_amount = int(round(forward_ton_amount.to_float(), 0))
         gas_fee = 1 * 10**9
@@ -386,8 +412,59 @@ class TicTonAsyncClient:
         >>> client = TicTonAsyncClient(...)
         >>> await client.wind(123, 1, 5)
         """
+        new_price_ff = await self._convert_price(new_price)
+        need_asset_tup = await self._estimate_wind(alarm_id, buy_num, new_price)
+        assert (
+            need_asset_tup is not None
+        ), "The price difference is smaller than threshold price"
 
-        raise NotImplementedError
+        need_base_asset, need_quote_asset = need_asset_tup
+
+        can_afford = await self._can_afford(need_base_asset, need_quote_asset)
+
+        assert can_afford, "not enough balance"
+
+        seqno = await self.toncenter.run_get_method(
+            self.wallet.address.to_string(), "seqno", []
+        )
+        forward_info = (
+            begin_cell()
+            .store_uint(1, 8)
+            .store_uint(alarm_id, 256)
+            .store_uint(buy_num, 32)
+            .store_uint(int(new_price_ff.raw_value), 256)
+            .end_cell()
+        )
+        need_base_asset = int(need_base_asset)
+        need_quote_asset = int(need_quote_asset)
+        print(f"new_price: {int(new_price_ff.raw_value)}")
+        print(need_base_asset, need_quote_asset)
+
+        body = (
+            begin_cell()
+            .store_uint(0xF8A7EA5, 32)
+            .store_uint(0, 64)
+            .store_coins(need_quote_asset)
+            .store_address(self.oracle)
+            .store_address(self.wallet.address)
+            .store_bit(False)
+            .store_coins(need_base_asset)
+            .store_ref(forward_info)
+            .end_cell()
+        )
+
+        jetton_wallet_address = await self.toncenter.get_jetton_wallet(
+            self.metadata["quote_asset_address"], self.wallet.address
+        )
+
+        result = await self._send(
+            to_address=jetton_wallet_address,
+            amount=int(need_base_asset) + 1 * 10**9,
+            seqno=int(seqno, 16),
+            body=body,
+        )
+
+        return result
 
     async def subscribe(
         self,
