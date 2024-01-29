@@ -56,8 +56,7 @@ class TonCenterClient:
 
         return result
 
-    ## Todo
-    async def get_token_balance(self, master_address, account_address):
+    async def get_jetton_wallet(self, master_address, account_address):
         request_stack = [
             [
                 "tvm.Slice",
@@ -77,6 +76,12 @@ class TonCenterClient:
             .begin_parse()
             .read_msg_addr()
             .to_string(True, True, True)
+        )
+        return jetton_wallet_address
+
+    async def get_token_balance(self, master_address, account_address):
+        jetton_wallet_address = await self.get_jetton_wallet(
+            master_address, account_address
         )
         # get token balance from jetton wallet address
         req = {
