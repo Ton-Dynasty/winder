@@ -186,3 +186,7 @@ class FixedFloat:
 
 def to_token(value: Union[int, float, str, Decimal], decimals: int) -> Decimal:
     return Decimal(value) * (Decimal(10) ** decimals)
+
+
+def token_to_float(value: Union[int, float, str, Decimal], decimals: int) -> Decimal:
+    return float(Decimal(value) / (Decimal(10) ** decimals))

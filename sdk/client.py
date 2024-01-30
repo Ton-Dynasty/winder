@@ -6,8 +6,7 @@ from tonsdk.boc import Cell, begin_cell
 from tonsdk.contract.wallet import Wallets
 from tonpy import CellSlice
 from typing import Dict, Tuple, Optional, Literal, Callable, TypedDict
-from .arithmetic import FixedFloat
-from utils import to_token
+from .arithmetic import FixedFloat, to_token, token_to_float
 from os import getenv
 from .ton_center_client import TonCenterClient
 
@@ -36,19 +35,27 @@ class TicTonAsyncClient:
         wallet_version: Literal[
             "v2r1", "v2r2", "v3r1", "v3r2", "v4r1", "v4r2", "hv2"
         ] = "v4r2",
-        threshold_price: float = 0.01,
+        threshold_price: float = 0.7,
         *,
         logger: Optional[logging.Logger] = None,
     ) -> None:
         _, _, _, self.wallet = Wallets.from_mnemonics(mnemonics.split(" "), wallet_version)  # type: ignore
         self.oracle = Address(oracle_addr)
-        self.logger = logger
+        if logger is None:
+            self.logger = logging.getLogger(__name__)
+            self.logger.setLevel(logging.INFO)
+            console_handler = logging.StreamHandler()
+            self.logger.addHandler(console_handler)
+        else:
+            self.logger = logger
 
         # TODO: import toncenter client
         self.toncenter = toncenter
 
         self.threshold_price = threshold_price
         self.metadata = metadata
+
+        self.logger.info("TicTonAsyncClient initialized")
 
     @classmethod
     async def init(
@@ -76,8 +83,6 @@ class TicTonAsyncClient:
             oracle_addr is not None
         ), "oracle_addr must be provided, you can either pass it as a parameter or set TICTON_ORACLE_ADDRESS environment variable"
 
-        logger = logger or logging.getLogger(__name__)
-
         # TODO: import toncenter client
         toncenter = TonCenterClient(toncenter_api_key, testnet=testnet)
         metadata = await cls._get_oracle_metadata(oracle_addr, toncenter)
@@ -100,6 +105,8 @@ class TicTonAsyncClient:
         get the oracle's metadata
         """
         metadata_res = await client.get_oracle_data(oracle_addr, "getOracleData", [])
+        assert len(metadata_res) == 8, "invalid oracle data"
+
         base_asset_address = CellSlice(metadata_res[0][1]["bytes"]).load_address()
         quote_asset_address = CellSlice(metadata_res[1][1]["bytes"]).load_address()
         base_asset_decimals = int(metadata_res[2][1], 16)
@@ -181,8 +188,6 @@ class TicTonAsyncClient:
         amount: int,
         seqno: int,
         body: Cell,
-        *,
-        dry_run: bool = False,
     ):
         """
         _send will send the given amount of tokens to to_address, if dry_run is set to True, it will
@@ -199,18 +204,14 @@ class TicTonAsyncClient:
         dry_run : bool
             Whether to call toncenter simulation api or not
         """
-        if dry_run:
-            result = []
-        else:
-            query = self.wallet.create_transfer_message(
-                to_addr=to_address,
-                amount=amount,
-                seqno=seqno,
-                payload=body,
-            )
-            print("body", bytes_to_b64str(query["message"].to_boc(False)))
-            boc = query["message"].to_boc(False)
-            result = await self.toncenter.send_boc(boc)
+        query = self.wallet.create_transfer_message(
+            to_addr=to_address,
+            amount=amount,
+            seqno=seqno,
+            payload=body,
+        )
+        boc = query["message"].to_boc(False)
+        result = await self.toncenter.send_boc(boc)
 
         return result
 
@@ -228,9 +229,11 @@ class TicTonAsyncClient:
                 ],
             ],
         )
-        can_buy = bool(result[0][1])
-        need_base_asset = int(result[1][1], 16) + 0.12 * 10**9  # add gas fee
+        print(result)
+        can_buy = bool(int(result[0][1], 16))
+        need_base_asset = int(result[1][1], 16) + 0.2 * 10**9  # add gas fee
         need_quote_asset = int(result[2][1], 16)
+        print(can_buy, need_base_asset, need_quote_asset)
 
         return (can_buy, need_base_asset, need_quote_asset)
 
@@ -242,14 +245,13 @@ class TicTonAsyncClient:
         assert alarm_state == "active", "alarm is not active"
 
         alarm_info = await self.toncenter.get_alarm_info(alarm_address)
-        print("alarm_info", alarm_info)
 
         new_price_ff = await self._convert_price(new_price)
         old_price_ff = FixedFloat(alarm_info["base_asset_price"], skip_scale=True)
         price_delta = abs(new_price_ff - old_price_ff)
 
         if price_delta < self.threshold_price:
-            return None
+            return None, alarm_info
 
         (
             can_buy,
@@ -260,7 +262,7 @@ class TicTonAsyncClient:
         )
         assert can_buy, "buy_num is too large"
 
-        return (Decimal(need_base_asset), Decimal(need_quote_asset))
+        return (Decimal(need_base_asset), Decimal(need_quote_asset)), alarm_info
 
     async def _can_afford(self, need_base_asset: Decimal, need_quote_asset: Decimal):
         base_asset_balance, quote_asset_balance = await self._get_user_balance()
@@ -273,7 +275,7 @@ class TicTonAsyncClient:
         return True
 
     async def tick(
-        self, price: float, *, timeout: int = 1000, extra_ton: float = 2, **kwargs
+        self, price: float, *, timeout: int = 1000, extra_ton: float = 0.1, **kwargs
     ):
         """
         tick will open a position with the given price and timeout, the total amount
@@ -298,6 +300,8 @@ class TicTonAsyncClient:
         >>> await client.init()
         >>> await client.tick(2.5)
         """
+        assert extra_ton >= 0.1, "extra_ton must be greater than or equal to 0.1"
+        assert price > 0, "price must be greater than 0"
         expire_at = int(time.time()) + timeout
         base_asset_price = await self._convert_price(price)
         quote_asset_transfered = FixedFloat(
@@ -307,10 +311,14 @@ class TicTonAsyncClient:
             extra_ton, self.metadata["base_asset_decimals"]
         )
         base_asset_price = int(base_asset_price.raw_value)
-        print(f"base_asset_price: {base_asset_price}")
         quote_asset_transfered = quote_asset_transfered.to_float()
         forward_ton_amount = int(round(forward_ton_amount.to_float(), 0))
         gas_fee = int(0.13 * 10**9)
+
+        can_afford = await self._can_afford(
+            Decimal(forward_ton_amount + gas_fee), quote_asset_transfered
+        )
+        assert can_afford, "not enough balance"
 
         forward_info = (
             begin_cell()
@@ -346,6 +354,21 @@ class TicTonAsyncClient:
             seqno=int(seqno, 16),
             body=body,
         )
+
+        args = [
+            price,
+            token_to_float(
+                forward_ton_amount + gas_fee, self.metadata["base_asset_decimals"]
+            ),
+            token_to_float(
+                quote_asset_transfered, self.metadata["quote_asset_decimals"]
+            ),
+        ]
+        log_info = (
+            "Tick Success, tick price: {}, spend base asset: {}, spend quote asset: {}"
+        ).format(*args)
+        self.logger.info(log_info)
+
         return result
 
     async def ring(self, alarm_id: int, **kwargs):
@@ -361,14 +384,19 @@ class TicTonAsyncClient:
 
         Examples
         --------
-        >>> client = TicTonAsyncClient(...)
-        >>> await client.init()
+        >>> client = TicTonAsyncClient.init(...)
         >>> await client.ring(123)
         """
+        alarm_address = await self.toncenter.get_alarm_address(
+            self.oracle.to_string(), alarm_id
+        )
+        alarm_state = await self.toncenter.get_address_state(alarm_address)
+        assert alarm_state == "active", "alarm is not exist"
+
         seqno = await self.toncenter.run_get_method(
             self.wallet.address.to_string(), "seqno", []
         )
-        gas_fee = int(0.3 * 10**9)
+        gas_fee = int(0.35 * 10**9)
         body = (
             begin_cell()
             .store_uint(0xC3510A29, 32)
@@ -382,6 +410,10 @@ class TicTonAsyncClient:
             seqno=int(seqno, 16),
             body=body,
         )
+
+        args = [alarm_id]
+        log_info = "Ring Success, alarm id: {}".format(*args)
+        self.logger.info(log_info)
 
         return result
 
@@ -405,26 +437,34 @@ class TicTonAsyncClient:
         Assume the token pair is TON/USDT, the price is 2.5 USDT per TON. The position is opened with 1 TON and 2.5 USDT with index 123.
         The new price is 5 USDT per TON, the buy_num is 1.
 
-        >>> client = TicTonAsyncClient(...)
+        >>> client = TicTonAsyncClient.init(...)
         >>> await client.wind(123, 1, 5)
         """
+        assert new_price > 0, "new_price must be greater than 0"
+        assert isinstance(buy_num, int), "buy_num must be an int"
+        assert buy_num > 0, "buy_num must be greater than 0"
+
         new_price_ff = await self._convert_price(new_price)
-        need_asset_tup = await self._estimate_wind(alarm_id, buy_num, new_price)
+        need_asset_tup, alarm_info = await self._estimate_wind(
+            alarm_id, buy_num, new_price
+        )
+        print(alarm_info)
         assert (
             need_asset_tup is not None
         ), "The price difference is smaller than threshold price"
 
         need_base_asset, need_quote_asset = need_asset_tup
 
-        can_afford = await self._can_afford(need_base_asset, need_quote_asset)
-
-        assert can_afford, "not enough balance"
-
         seqno = await self.toncenter.run_get_method(
             self.wallet.address.to_string(), "seqno", []
         )
 
         gas_fee = int(0.13 * 10**9)
+
+        can_afford = await self._can_afford(
+            Decimal(need_base_asset + gas_fee), need_quote_asset
+        )
+        assert can_afford, "not enough balance"
 
         forward_info = (
             begin_cell()
@@ -436,8 +476,6 @@ class TicTonAsyncClient:
         )
         need_base_asset = int(need_base_asset)
         need_quote_asset = int(need_quote_asset)
-        print(f"new_price: {int(new_price_ff.raw_value)}")
-        print(need_base_asset, need_quote_asset)
 
         body = (
             begin_cell()
@@ -462,6 +500,18 @@ class TicTonAsyncClient:
             seqno=int(seqno, 16),
             body=body,
         )
+
+        args = [
+            alarm_id,
+            buy_num,
+            new_price,
+            token_to_float(need_base_asset, self.metadata["base_asset_decimals"]),
+            token_to_float(need_quote_asset, self.metadata["quote_asset_decimals"]),
+        ]
+        log_info = (
+            "Wind Success, alarm id: {}, buy num: {}, wind price: {}, spend base asset: {}, spend quote asset: {}"
+        ).format(*args)
+        self.logger.info(log_info)
 
         return result
 

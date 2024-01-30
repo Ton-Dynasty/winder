@@ -39,8 +39,8 @@ async def wind_test(alram_id):
 async def main():
     # await init_test()
     # await tick_test()
-    # await wind_test(12)
-    await ring_test(14)
+    # await wind_test(22)
+    await ring_test(21)
 
 
 if __name__ == "__main__":
