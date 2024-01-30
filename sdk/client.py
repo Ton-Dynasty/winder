@@ -154,7 +154,7 @@ class TicTonAsyncClient:
             master_address: Address, account_address: Address
         ) -> Decimal:
             if (
-                master_address.to_string()
+                master_address.to_string(False)
                 == "0:0000000000000000000000000000000000000000000000000000000000000000"
             ):
                 balance = await self.toncenter.get_address_balance(
@@ -199,7 +199,6 @@ class TicTonAsyncClient:
         dry_run : bool
             Whether to call toncenter simulation api or not
         """
-        print("to_address", to_address)
         if dry_run:
             result = []
         else:
@@ -229,8 +228,11 @@ class TicTonAsyncClient:
                 ],
             ],
         )
-        print("result", result)
-        return None
+        can_buy = bool(result[0][1])
+        need_base_asset = int(result[1][1], 16) + 0.12 * 10**9  # add gas fee
+        need_quote_asset = int(result[2][1], 16)
+
+        return (can_buy, need_base_asset, need_quote_asset)
 
     async def _estimate_wind(self, alarm_id: int, buy_num: int, new_price: float):
         alarm_address = await self.toncenter.get_alarm_address(
@@ -256,9 +258,9 @@ class TicTonAsyncClient:
         ) = await self._estimate_from_oracle_get_method(
             alarm_address, buy_num, int(new_price_ff.raw_value)
         )
-        # assert can_buy, "buy_num is too large"
-        #
-        # return (need_base_asset, need_quote_asset)
+        assert can_buy, "buy_num is too large"
+
+        return (Decimal(need_base_asset), Decimal(need_quote_asset))
 
     async def _can_afford(self, need_base_asset: Decimal, need_quote_asset: Decimal):
         base_asset_balance, quote_asset_balance = await self._get_user_balance()
@@ -308,7 +310,7 @@ class TicTonAsyncClient:
         print(f"base_asset_price: {base_asset_price}")
         quote_asset_transfered = quote_asset_transfered.to_float()
         forward_ton_amount = int(round(forward_ton_amount.to_float(), 0))
-        gas_fee = 1 * 10**9
+        gas_fee = int(0.13 * 10**9)
 
         forward_info = (
             begin_cell()
@@ -366,6 +368,7 @@ class TicTonAsyncClient:
         seqno = await self.toncenter.run_get_method(
             self.wallet.address.to_string(), "seqno", []
         )
+        gas_fee = int(0.3 * 10**9)
         body = (
             begin_cell()
             .store_uint(0xC3510A29, 32)
@@ -375,7 +378,7 @@ class TicTonAsyncClient:
         )
         result = await self._send(
             to_address=self.oracle.to_string(),
-            amount=1 * 10**9,
+            amount=gas_fee,
             seqno=int(seqno, 16),
             body=body,
         )
@@ -420,6 +423,9 @@ class TicTonAsyncClient:
         seqno = await self.toncenter.run_get_method(
             self.wallet.address.to_string(), "seqno", []
         )
+
+        gas_fee = int(0.13 * 10**9)
+
         forward_info = (
             begin_cell()
             .store_uint(1, 8)
@@ -452,7 +458,7 @@ class TicTonAsyncClient:
 
         result = await self._send(
             to_address=jetton_wallet_address,
-            amount=int(need_base_asset) + 1 * 10**9,
+            amount=int(need_base_asset) + gas_fee,
             seqno=int(seqno, 16),
             body=body,
         )
