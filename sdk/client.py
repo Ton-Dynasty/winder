@@ -561,10 +561,10 @@ class TicTonAsyncClient:
 
     async def subscribe(
         self,
-        to_lt: int = 0,
         on_tick_success: Optional[Callable] = None,
         on_ring_success: Optional[Callable] = None,
         on_wind_success: Optional[Callable] = None,
+        to_lt: int = 0,
     ):
         """
         subscribe will subscribe the oracle's transactions, handle the transactions and call the
@@ -585,7 +585,7 @@ class TicTonAsyncClient:
         while True:
             try:
                 if to_lt == 0:
-                    params = {"address": self.oracle.to_string(), "limit": 10}
+                    params = {"address": self.oracle.to_string(), "limit": 100}
                 else:
                     params = {
                         "address": self.oracle.to_string(),
