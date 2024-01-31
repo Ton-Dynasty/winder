@@ -274,11 +274,44 @@ class TicTonAsyncClient:
             return False
         return True
 
-    async def _parse(self, in_msg_body: str, out_msg_body: List[str]):
+    async def _parse(self, in_msg_body: str):
         """
         parse the in_msg_body and out_msg_body
         """
-        # TODO
+        cs: slice = CellSlice(in_msg_body)
+        opcode = str(hex(cs.load_uint(32)))
+        # print(opcode)
+        if opcode == "0x7362d09c":
+            query_id = cs.load_uint(64)
+            amount = cs.load_var_uint(16)
+            sender_address = cs.load_address()
+            forward_payload = cs.load_ref().begin_parse()
+            oracle_opcode = forward_payload.load_uint(8)
+            if oracle_opcode == 0:
+                expire_at = forward_payload.load_uint(256)
+                base_asset_price = forward_payload.load_int(256)
+                return {
+                    "Tick": {
+                        "watchmaker": sender_address,
+                        "base_asset_price": base_asset_price,
+                    }
+                }
+            else:
+                alarmIndex = forward_payload.load_uint(256)
+                buyNum = forward_payload.load_int(32)
+                new_base_asset_price = forward_payload.load_int(256)
+                return {
+                    "Wind": {
+                        "timekeeper": sender_address,
+                        "alarmIndex": alarmIndex,
+                        "new_base_asset_price": new_base_asset_price,
+                    }
+                }
+        elif opcode == "0xc3510a29":
+            query_id = cs.load_uint(257)
+            alarmIndex = cs.load_uint(257)
+            return {"Ring": {"alarmIndex": alarmIndex}}
+
         return None
 
     async def tick(
@@ -536,7 +569,7 @@ class TicTonAsyncClient:
         while True:
             try:
                 if to_lt == 0:
-                    params = {"address": self.oracle.to_string(), "limit": 1}
+                    params = {"address": self.oracle.to_string(), "limit": 100}
                 else:
                     params = {
                         "address": self.oracle.to_string(),
@@ -547,14 +580,15 @@ class TicTonAsyncClient:
                 for transaction_tree in result:
                     tx_lt = transaction_tree["transaction_id"]["lt"]
                     in_msg_body = transaction_tree["in_msg"]["msg_data"]["body"]
-                    out_msg_body = []
-                    for out_msg in transaction_tree["out_msgs"]:
-                        out_msg_body.append(out_msg["msg_data"]["body"])
+                    # out_msg_body = []
+                    # for out_msg in transaction_tree["out_msgs"]:
+                    #     out_msg_body.append(out_msg["msg_data"]["body"])
 
                     if to_lt < int(tx_lt):
                         to_lt = int(tx_lt) + 1
-                    print(in_msg_body)
-                    print(out_msg_body)
+                    result = await self._parse(in_msg_body)
+
+                    print(result)
 
             except Exception as e:
                 self.logger.error(f"Error while subscribing {e}")
