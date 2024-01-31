@@ -53,6 +53,15 @@ class TonCenterClient:
             result = result["stack"]
         return result
 
+    async def get_transactions(self, params):
+        req = {
+            "func": self.__jsonrpc_request,
+            "args": ["getTransactions"],
+            "kwargs": {"params": params},
+        }
+        result = await self._run(req)
+        return result
+
     async def get_address_state(self, address):
         req = {
             "func": self.__jsonrpc_request,

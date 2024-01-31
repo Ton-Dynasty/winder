@@ -5,7 +5,7 @@ from tonsdk.utils import Address, bytes_to_b64str
 from tonsdk.boc import Cell, begin_cell
 from tonsdk.contract.wallet import Wallets
 from tonpy import CellSlice
-from typing import Dict, Tuple, Optional, Literal, Callable, TypedDict
+from typing import Dict, Tuple, Optional, Literal, Callable, TypedDict, List
 from .arithmetic import FixedFloat, to_token, token_to_float
 from os import getenv
 from .ton_center_client import TonCenterClient
@@ -274,6 +274,13 @@ class TicTonAsyncClient:
             return False
         return True
 
+    async def _parse(self, in_msg_body: str, out_msg_body: List[str]):
+        """
+        parse the in_msg_body and out_msg_body
+        """
+        # TODO
+        return None
+
     async def tick(
         self, price: float, *, timeout: int = 1000, extra_ton: float = 0.1, **kwargs
     ):
@@ -517,6 +524,7 @@ class TicTonAsyncClient:
 
     async def subscribe(
         self,
+        to_lt: int = 0,
         on_tick_success: Optional[Callable] = None,
         on_ring_success: Optional[Callable] = None,
         on_wind_success: Optional[Callable] = None,
@@ -525,4 +533,29 @@ class TicTonAsyncClient:
         subscribe will subscribe the oracle's transactions, handle the transactions and call the
         given callbacks.
         """
-        raise NotImplementedError
+        while True:
+            try:
+                if to_lt == 0:
+                    params = {"address": self.oracle.to_string(), "limit": 1}
+                else:
+                    params = {
+                        "address": self.oracle.to_string(),
+                        "to_lt": to_lt,
+                    }
+                result = await self.toncenter.get_transactions(params)
+
+                for transaction_tree in result:
+                    tx_lt = transaction_tree["transaction_id"]["lt"]
+                    in_msg_body = transaction_tree["in_msg"]["msg_data"]["body"]
+                    out_msg_body = []
+                    for out_msg in transaction_tree["out_msgs"]:
+                        out_msg_body.append(out_msg["msg_data"]["body"])
+
+                    if to_lt < int(tx_lt):
+                        to_lt = int(tx_lt) + 1
+                    print(in_msg_body)
+                    print(out_msg_body)
+
+            except Exception as e:
+                self.logger.error(f"Error while subscribing {e}")
+                continue

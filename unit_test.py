@@ -36,11 +36,17 @@ async def wind_test(alram_id):
     print(wind)
 
 
+async def subscribe_test():
+    client = await init_test()
+    await client.subscribe()
+
+
 async def main():
     # await init_test()
     # await tick_test()
     # await wind_test(22)
-    await ring_test(21)
+    # await ring_test(21)
+    await subscribe_test()
 
 
 if __name__ == "__main__":
