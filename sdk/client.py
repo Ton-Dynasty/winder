@@ -314,6 +314,22 @@ class TicTonAsyncClient:
                 alarm_id = cs.load_uint(257)
                 return {"Ring": {"alarm_id": alarm_id}}
 
+            # elif opcode == "0x09c0fafb":
+            #     alarm_id = cs.load_uint(256)
+            #     scale = cs.load_uint(32)
+            #     created_at = cs.load_uint(257)
+            #     watchmaker = cs.load_address()
+            #     baseAssetPrice = cs.load_uint(257)
+
+            #     return {
+            #         "Tock": {
+            #             "alarm_id": alarm_id,
+            #             "watchmaker": watchmaker,
+            #             "alarm_id": alarm_id,
+            #             "baseAssetPrice": baseAssetPrice,
+            #         }
+            #     }
+
             return None
         except Exception as e:
             # self.logger.error(f"Error while parsing {e}")
