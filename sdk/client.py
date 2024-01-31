@@ -1,5 +1,6 @@
 from decimal import Decimal
 import logging
+import asyncio
 import time
 from tonsdk.utils import Address, bytes_to_b64str
 from tonsdk.boc import Cell, begin_cell
@@ -318,6 +319,49 @@ class TicTonAsyncClient:
             # self.logger.error(f"Error while parsing {e}")
             return None
 
+    async def get_alarms_amount(self):
+        """
+        get the total amount of alarms
+        """
+        result = await self.toncenter.run_get_method(
+            self.oracle.to_string(), "TotalAmount", []
+        )
+        return int(result, 16)
+
+    async def check_alarms(self, alarm_id_list: List[int]):
+        self.logger.info("Checking Alarms State")
+
+        address_list = []
+        # 5 tasks one time
+        for i in range(0, len(alarm_id_list), 5):
+            tasks = [
+                self.toncenter.get_alarm_address(self.oracle.to_string(), alarm_id)
+                for alarm_id in alarm_id_list[i : i + 5]
+            ]
+            results = await asyncio.gather(*tasks)
+            address_list += [result for result in results]
+
+        # get alarm state
+        state_list = []
+        # 5 tasks one time
+        for i in range(0, len(address_list), 5):
+            tasks = [
+                self.toncenter.get_address_state(address)
+                for address in address_list[i : i + 5]
+            ]
+            state_list += await asyncio.gather(*tasks)
+
+        # update alarm dict
+        alarm_dict = {}
+        for alarm_id, alarm_address, alarm_state in zip(
+            alarm_id_list, address_list, state_list
+        ):
+            alarm_dict[alarm_id] = {}
+            alarm_dict[alarm_id]["state"] = alarm_state
+            alarm_dict[alarm_id]["address"] = alarm_address
+
+        return alarm_dict
+
     async def tick(
         self, price: float, *, timeout: int = 1000, extra_ton: float = 0.1, **kwargs
     ):
@@ -585,7 +629,7 @@ class TicTonAsyncClient:
         while True:
             try:
                 if to_lt == 0:
-                    params = {"address": self.oracle.to_string(), "limit": 100}
+                    params = {"address": self.oracle.to_string(), "limit": 1}
                 else:
                     params = {
                         "address": self.oracle.to_string(),
