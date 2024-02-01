@@ -9,6 +9,6 @@ do
 done < ".env"
 
 source export_variables.sh
-# rm export_variables.sh
+rm export_variables.sh
 
 echo "All variables exported"
