@@ -8,9 +8,6 @@ load_dotenv()
 
 async def init_test():
     client = await TicTonAsyncClient.init(
-        mnemonics=os.getenv("MNEMONICS"),
-        oracle_addr=os.getenv("ORACLE_ADDRESS"),
-        toncenter_api_key=os.getenv("TEST_TONCENTER_API_KEY"),
         testnet=True,
     )
     # print(client.metadata)
@@ -45,8 +42,8 @@ async def main():
     # await init_test()
     # await tick_test()
     # await wind_test(22)
-    # await ring_test(21)
-    await subscribe_test()
+    await ring_test(0)
+    # await subscribe_test()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,8 @@
 import os
+import re
 from dotenv import load_dotenv
 import asyncio
+from typing import Literal, Optional
 
 import mysql.connector as connector
 
@@ -18,6 +20,22 @@ logger.addHandler(console_handler)
 
 
 load_dotenv()
+
+
+class Alarm:
+    def __init__(
+        self,
+        id: int,
+        price: Optional[int] = 0,
+        address: Optional[str] = None,
+        state: Literal["uninitialized", "active"] = "active",
+        is_mine: bool = False,
+    ):
+        self.id = id
+        self.address = address
+        self.state = state
+        self.price = price
+        self.is_mine = is_mine
 
 
 async def create_connection():
@@ -45,8 +63,9 @@ async def init():
             CREATE TABLE IF NOT EXISTS alarms (
                 id INT PRIMARY KEY,
                 address VARCHAR(255),
-                state VARCHAR(100),
-                price DECIMAL(16, 9)
+                state VARCHAR(100) DEFAULT 'active'
+                price DECIMAL(16, 9) DEFAULT 0
+                is_mine BOOLEAN DEFAULT FALSE
             )
             """
             cursor.execute(create_table_sql)
@@ -61,20 +80,21 @@ async def init():
         return False
 
 
-async def get_alarm_from_db():
+async def get_alarm_from_db(filter: Optional[str] = None):
     try:
         connection = await create_connection()
         if connection is not None and connection.is_connected():
             cursor = connection.cursor()
-            select_sql = "SELECT * FROM {}"
-            select_sql = select_sql.format("alarms")
+            select_sql = """
+            SELECT id, address, state, price, is_mine FROM alarms
+            WHERE {}
+            """
+            select_sql = select_sql.format("1=1" if filter is None else filter)
             cursor.execute(select_sql)
-            result = {}
-            for id, address, state, price in cursor.fetchall():
-                result[id] = {}
-                result[id]["address"] = address
-                result[id]["state"] = state
-                result[id]["price"] = price
+            result = []
+            for id, address, state, price, is_mine in cursor.fetchall():
+                alarm = Alarm(id, price, address, state, is_mine)
+                result.append(alarm)
 
             cursor.close()
             connection.close()
@@ -85,33 +105,42 @@ async def get_alarm_from_db():
         return None
 
 
-async def update_alarm_to_db(alarm_dict):
+async def update_alarm_to_db(alarms: list[Alarm]):
     try:
-        if alarm_dict is None:
-            return None
+        if alarms is None or len(alarms) == 0:
+            return False
+
         connection = await create_connection()
         if connection is not None and connection.is_connected():
             cursor = connection.cursor()
             update_sql = """
-            INSERT INTO {} (id, address, state, price)
-            VALUES (%s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE address = VALUES(address), state = VALUES(state), price = VALUES(price)
+                INSERT INTO alarms (id, address, state, price, is_mine)
+                VALUES (%s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                address = VALUES(address),
+                state = VALUES(state),
+                price = VALUES(price),
+                is_mine = VALUES(is_mine)
             """
-            update_sql = update_sql.format("alarms")
             insert_list = []
-            for alarm_id, alarm_info in alarm_dict.items():
+            for alarm in alarms:
                 insert_list.append(
                     (
-                        alarm_id,
-                        alarm_info["address"],
-                        alarm_info["state"],
-                        alarm_info["price"],
+                        alarm.id,
+                        alarm.address,
+                        alarm.state,
+                        alarm.price,
+                        alarm.is_mine,
                     )
                 )
             cursor.executemany(update_sql, insert_list)
             connection.commit()
             cursor.close()
             connection.close()
+
+            return True
+
+        return False
 
     except Exception as e:
         logger.error(f"Error while updating alarm info to MariaDB {e}")

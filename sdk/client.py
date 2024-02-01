@@ -146,6 +146,17 @@ class TicTonAsyncClient:
             / 10 ** self.metadata["base_asset_decimals"]
         )
 
+    async def _convert_fixedfloat_to_price(self, price: FixedFloat) -> float:
+        """
+        Adjusts the given price by scaling it to match the decimal difference between the quote and base assets in a token pair.
+        """
+        assert isinstance(price, FixedFloat), "price must be a FixedFloat"
+        return (
+            price.to_float()
+            * 10 ** self.metadata["base_asset_decimals"]
+            / 10 ** self.metadata["quote_asset_decimals"]
+        )
+
     async def _get_user_balance(self) -> Tuple[Decimal, Decimal]:
         """
         get the user's balance of baseAsset and quoteAsset in nanoTON
@@ -230,11 +241,9 @@ class TicTonAsyncClient:
                 ],
             ],
         )
-        print(result)
         can_buy = bool(int(result[0][1], 16))
         need_base_asset = int(result[1][1], 16) + 0.2 * 10**9  # add gas fee
         need_quote_asset = int(result[2][1], 16)
-        print(can_buy, need_base_asset, need_quote_asset)
 
         return (can_buy, need_base_asset, need_quote_asset)
 
@@ -282,7 +291,6 @@ class TicTonAsyncClient:
         try:
             cs: slice = CellSlice(in_msg_body)
             opcode = str(hex(cs.load_uint(32)))
-            # print(opcode)
             if opcode == "0x7362d09c":
                 query_id = cs.load_uint(64)
                 amount = cs.load_var_uint(16)
@@ -292,6 +300,9 @@ class TicTonAsyncClient:
                 if oracle_opcode == 0:
                     expire_at = forward_payload.load_uint(256)
                     base_asset_price = forward_payload.load_int(256)
+                    base_asset_price = await self._convert_fixedfloat_to_price(
+                        FixedFloat(base_asset_price, skip_scale=True)
+                    )
                     return {
                         "Tick": {
                             "watchmaker": sender_address,
@@ -314,26 +325,32 @@ class TicTonAsyncClient:
                 alarm_id = cs.load_uint(257)
                 return {"Ring": {"alarm_id": alarm_id}}
 
-            # elif opcode == "0x09c0fafb":
-            #     alarm_id = cs.load_uint(256)
-            #     scale = cs.load_uint(32)
-            #     created_at = cs.load_uint(257)
-            #     watchmaker = cs.load_address()
-            #     baseAssetPrice = cs.load_uint(257)
+            elif opcode == "0x9c0fafb":
+                alarm_id = cs.load_uint(256)
+                scale = cs.load_uint(32)
+                created_at = cs.load_int(257)
+                watchmaker = cs.load_address()
 
-            #     return {
-            #         "Tock": {
-            #             "alarm_id": alarm_id,
-            #             "watchmaker": watchmaker,
-            #             "alarm_id": alarm_id,
-            #             "baseAssetPrice": baseAssetPrice,
-            #         }
-            #     }
+                return {
+                    "Tock": {
+                        "alarm_id": alarm_id,
+                        "watchmaker": watchmaker,
+                    }
+                }
 
             return None
         except Exception as e:
             # self.logger.error(f"Error while parsing {e}")
             return None
+
+    async def _get_tock_alarm_id(self, out_msg_body):
+        result = await self._parse(out_msg_body)
+        if result is None:
+            return None
+        for op, data in result.items():
+            if op == "Tock":
+                return data["alarm_id"]
+        return None
 
     async def get_alarms_amount(self):
         """
@@ -504,7 +521,7 @@ class TicTonAsyncClient:
         body = (
             begin_cell()
             .store_uint(0xC3510A29, 32)
-            .store_uint(alarm_id, 257)
+            .store_uint(1, 257)  # query_id cannot be 0
             .store_uint(alarm_id, 257)
             .end_cell()
         )
@@ -521,7 +538,16 @@ class TicTonAsyncClient:
 
         return result
 
-    async def wind(self, alarm_id: int, buy_num: int, new_price: float, **kwargs):
+    async def wind(
+        self,
+        alarm_id: int,
+        buy_num: int,
+        new_price: float,
+        skip_estimate: float = False,
+        need_quote_asset: Optional[Decimal] = None,
+        need_base_asset: Optional[Decimal] = None,
+        **kwargs,
+    ):
         """
         wind will arbitrage the position with the given alarm_id, buy_num and new_price
 
@@ -549,15 +575,19 @@ class TicTonAsyncClient:
         assert buy_num > 0, "buy_num must be greater than 0"
 
         new_price_ff = await self._convert_price(new_price)
-        need_asset_tup, alarm_info = await self._estimate_wind(
-            alarm_id, buy_num, new_price
-        )
-        print(alarm_info)
-        assert (
-            need_asset_tup is not None
-        ), "The price difference is smaller than threshold price"
 
-        need_base_asset, need_quote_asset = need_asset_tup
+        if skip_estimate:
+            assert need_base_asset is not None, "need_base_asset must be provided"
+            assert need_quote_asset is not None, "need_quote_asset must be provided"
+        else:
+            need_asset_tup, alarm_info = await self._estimate_wind(
+                alarm_id, buy_num, new_price
+            )
+            assert (
+                need_asset_tup is not None
+            ), "The price difference is smaller than threshold price"
+
+            need_base_asset, need_quote_asset = need_asset_tup
 
         seqno = await self.toncenter.run_get_method(
             self.wallet.address.to_string(), "seqno", []
@@ -578,18 +608,16 @@ class TicTonAsyncClient:
             .store_uint(int(new_price_ff.raw_value), 256)
             .end_cell()
         )
-        need_base_asset = int(need_base_asset)
-        need_quote_asset = int(need_quote_asset)
 
         body = (
             begin_cell()
             .store_uint(0xF8A7EA5, 32)
             .store_uint(0, 64)
-            .store_coins(need_quote_asset)
+            .store_coins(int(need_quote_asset))
             .store_address(self.oracle)
             .store_address(self.wallet.address)
             .store_bit(False)
-            .store_coins(need_base_asset)
+            .store_coins(int(need_base_asset))
             .store_ref(forward_info)
             .end_cell()
         )
@@ -632,7 +660,8 @@ class TicTonAsyncClient:
 
         on_tick_success params:
         - watchmaker: str
-        - base_asset_price: int
+        - base_asset_price: float
+        - new_alarm_id: int
 
         on_ring_success params:
         - alarm_id: int
@@ -640,12 +669,14 @@ class TicTonAsyncClient:
         on_wind_success params:
         - timekeeper: str
         - alarm_id: int
-        - new_base_asset_price: int
+        - new_base_asset_price: float
+        - new_alarm_id: int
         """
+        self.logger.info(f"Start Subscribing: {self.oracle.to_string()}")
         while True:
             try:
                 if to_lt == 0:
-                    params = {"address": self.oracle.to_string(), "limit": 1}
+                    params = {"address": self.oracle.to_string(), "limit": 10}
                 else:
                     params = {
                         "address": self.oracle.to_string(),
@@ -653,10 +684,16 @@ class TicTonAsyncClient:
                     }
                 result = await self.toncenter.get_transactions(params)
 
-                for transaction_tree in result:
+                # start from the last transaction
+                for transaction_tree in result[::-1]:
                     tx_lt = transaction_tree["transaction_id"]["lt"]
                     in_msg_body = transaction_tree["in_msg"]["msg_data"]["body"]
-
+                    if len(transaction_tree["out_msgs"]) == 0:
+                        out_msg_body = ""
+                    else:
+                        out_msg_body = transaction_tree["out_msgs"][0]["msg_data"][
+                            "body"
+                        ]
                     if to_lt < int(tx_lt):
                         to_lt = int(tx_lt) + 1
                     result = await self._parse(in_msg_body)
@@ -666,12 +703,16 @@ class TicTonAsyncClient:
                     for op, data in result.items():
                         if op == "Tick":
                             if on_tick_success is not None:
+                                alarm_id = await self._get_tock_alarm_id(out_msg_body)
+                                data["new_alarm_id"] = alarm_id
                                 await on_tick_success(**data)
                         elif op == "Ring":
                             if on_ring_success is not None:
                                 await on_ring_success(**data)
                         elif op == "Wind":
                             if on_wind_success is not None:
+                                alarm_id = await self._get_tock_alarm_id(out_msg_body)
+                                data["new_alarm_id"] = alarm_id
                                 await on_wind_success(**data)
 
             except Exception as e:
