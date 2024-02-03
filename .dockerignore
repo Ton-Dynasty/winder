@@ -1,2 +1,3 @@
 .env**
 venv/
+maria-db/

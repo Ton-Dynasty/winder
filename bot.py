@@ -3,12 +3,14 @@ import os
 from dotenv import load_dotenv
 import logging
 from typing import List, Dict
+from threading import Thread
 
 
-from market_price import get_ton_usdt_price
+from market_price import get_ton_usdt_price, set_ton_usdt_prices
+from subscriber import subscribe
 from mariadb_connector import get_alarm_from_db, update_alarm_to_db, Alarm
 
-from sdk import TicTonAsyncClient, FixedFloat
+from ticton import TicTonAsyncClient, FixedFloat
 
 load_dotenv()
 
@@ -23,8 +25,6 @@ console_handler.setLevel(logging.DEBUG)
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
-
-toncenter = None
 
 
 async def check_balance(
@@ -146,8 +146,7 @@ async def get_max_profit_dp(
 
 
 async def main():
-    global toncenter
-    toncenter = await TicTonAsyncClient.init(testnet=True)
+    client = await TicTonAsyncClient.init(testnet=True)
     while True:
         try:
             logger.info("=======================")
@@ -156,13 +155,13 @@ async def main():
             if alarms is not None and len(alarms) > 0:
                 new_price = await get_ton_usdt_price()
                 if new_price is None:
-                    return
+                    continue
                 new_price = round(new_price, 9)
                 logger.info(f"New Price: {new_price}")
                 (
                     base_balance,
                     quote_balance,
-                ) = await toncenter._get_user_balance()
+                ) = await client._get_user_balance()
 
                 profitable_alarms = []
                 for alarm in alarms:
@@ -170,14 +169,14 @@ async def main():
                     price_delta = abs(new_price - old_price)
                     if price_delta > float(THRESHOLD_PRICE):
                         if alarm.is_mine:
-                            result = await toncenter.ring(alarm.id)
+                            result = await client.ring(alarm.id)
                             logger.info(f"Ring result: {result}")
                             continue
                         (
                             can_buy,
                             need_asset_tup,
                             alarm_info,
-                        ) = await toncenter._estimate_wind(alarm.id, 1, new_price)
+                        ) = await client._estimate_wind(alarm.id, 1, new_price)
 
                         if not can_buy:
                             continue
@@ -213,7 +212,7 @@ async def main():
                 )
                 logger.info(f"Strategy: {strategy}")
                 for wind_alarm in strategy:
-                    result = await toncenter.wind(
+                    result = await client.wind(
                         alarm_id=wind_alarm["id"],
                         buy_num=wind_alarm["buy_num"],
                         new_price=new_price,
@@ -229,4 +228,13 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    threads = [
+        Thread(target=asyncio.run, args=(set_ton_usdt_prices(),)),
+        Thread(target=asyncio.run, args=(subscribe(),)),
+        Thread(target=asyncio.run, args=(main(),)),
+    ]
+    for thread in threads:
+        thread.start()
+
+    for thread in threads:
+        thread.join()

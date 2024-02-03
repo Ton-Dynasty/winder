@@ -1,7 +1,7 @@
 import asyncio
 import os
 from dotenv import load_dotenv
-from sdk import FixedFloat, to_token, TicTonAsyncClient
+from ticton import FixedFloat, to_token, TicTonAsyncClient
 
 load_dotenv()
 
@@ -39,8 +39,8 @@ async def subscribe_test():
 
 
 async def main():
-    # await init_test()
-    await tick_test()
+    await init_test()
+    # await tick_test()
     # await wind_test(22)
     # await ring_test(1)
     # await subscribe_test()
