@@ -11,6 +11,8 @@ from .arithmetic import FixedFloat, to_token, token_to_float
 from os import getenv
 from .ton_center_client import TonCenterClient
 
+__all__ = ["TicTonAsyncClient"]
+
 OracleMetadata = TypedDict(
     "OracleMetadata",
     {
