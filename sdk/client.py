@@ -270,9 +270,12 @@ class TicTonAsyncClient:
         ) = await self._estimate_from_oracle_get_method(
             alarm_address, buy_num, int(new_price_ff.raw_value)
         )
-        assert can_buy, "buy_num is too large"
 
-        return (Decimal(need_base_asset), Decimal(need_quote_asset)), alarm_info
+        return (
+            can_buy,
+            (Decimal(need_base_asset), Decimal(need_quote_asset)),
+            alarm_info,
+        )
 
     async def _can_afford(self, need_base_asset: Decimal, need_quote_asset: Decimal):
         base_asset_balance, quote_asset_balance = await self._get_user_balance()
@@ -309,17 +312,28 @@ class TicTonAsyncClient:
                             "base_asset_price": base_asset_price,
                         }
                     }
-                else:
-                    alarm_id = forward_payload.load_uint(256)
-                    buyNum = forward_payload.load_int(32)
-                    new_base_asset_price = forward_payload.load_int(256)
-                    return {
-                        "Wind": {
-                            "timekeeper": sender_address,
-                            "alarm_id": alarm_id,
-                            "new_base_asset_price": new_base_asset_price,
-                        }
+            elif opcode == "0x8eb5cd4":
+                alarm_id = cs.load_int(257)
+                timekeeper = cs.load_address()
+                new_base_asset_price = cs.load_uint(256)
+                cs = cs.load_ref(as_cs=True)
+                new_scale = cs.load_int(257)
+                refund_quote_asset_amount = cs.load_int(16)
+                base_asset_price = cs.load_uint(256)
+                cs = cs.load_ref(as_cs=True)
+                created_at = cs.load_int(257)
+                remain_scale = cs.load_int(257)
+                new_base_asset_price = await self._convert_fixedfloat_to_price(
+                    FixedFloat(new_base_asset_price, skip_scale=True)
+                )
+                return {
+                    "Wind": {
+                        "timekeeper": timekeeper,
+                        "alarm_id": alarm_id,
+                        "new_base_asset_price": new_base_asset_price,
+                        "remain_scale": remain_scale - new_scale / 2,
                     }
+                }
             elif opcode == "0xc3510a29":
                 query_id = cs.load_uint(257)
                 alarm_id = cs.load_uint(257)
@@ -580,9 +594,10 @@ class TicTonAsyncClient:
             assert need_base_asset is not None, "need_base_asset must be provided"
             assert need_quote_asset is not None, "need_quote_asset must be provided"
         else:
-            need_asset_tup, alarm_info = await self._estimate_wind(
+            can_buy, need_asset_tup, alarm_info = await self._estimate_wind(
                 alarm_id, buy_num, new_price
             )
+            assert can_buy, "Buy num is too large"
             assert (
                 need_asset_tup is not None
             ), "The price difference is smaller than threshold price"
@@ -670,13 +685,14 @@ class TicTonAsyncClient:
         - timekeeper: str
         - alarm_id: int
         - new_base_asset_price: float
+        - remain_scale: int
         - new_alarm_id: int
         """
         self.logger.info(f"Start Subscribing: {self.oracle.to_string()}")
         while True:
             try:
                 if to_lt == 0:
-                    params = {"address": self.oracle.to_string(), "limit": 10}
+                    params = {"address": self.oracle.to_string(), "limit": 20}
                 else:
                     params = {
                         "address": self.oracle.to_string(),
@@ -689,6 +705,8 @@ class TicTonAsyncClient:
                     tx_lt = transaction_tree["transaction_id"]["lt"]
                     in_msg_body = transaction_tree["in_msg"]["msg_data"]["body"]
                     if len(transaction_tree["out_msgs"]) == 0:
+                        out_msg_body = ""
+                    elif "body" not in transaction_tree["out_msgs"][0]["msg_data"]:
                         out_msg_body = ""
                     else:
                         out_msg_body = transaction_tree["out_msgs"][0]["msg_data"][

@@ -40,9 +40,9 @@ async def subscribe_test():
 
 async def main():
     # await init_test()
-    # await tick_test()
+    await tick_test()
     # await wind_test(22)
-    await ring_test(0)
+    # await ring_test(1)
     # await subscribe_test()
 
 
