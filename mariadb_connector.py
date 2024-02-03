@@ -71,7 +71,7 @@ async def init():
                 state VARCHAR(100) DEFAULT 'active',
                 price DECIMAL(16, 9) DEFAULT 0,
                 is_mine BOOLEAN DEFAULT FALSE,
-                remain_scale INT DEFAULT 1
+                remain_scale INT DEFAULT 1,
             )
             """
             cursor.execute(create_table_sql)

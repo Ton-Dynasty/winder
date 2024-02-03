@@ -1,4 +1,4 @@
-from sdk import TicTonAsyncClient, FixedFloat
+from ticton import TicTonAsyncClient, FixedFloat
 import asyncio
 import os
 from dotenv import load_dotenv
@@ -22,7 +22,6 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
-load_dotenv()
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
@@ -33,10 +32,8 @@ THRESHOLD_PRICE = os.getenv("THRESHOLD_PRICE", 0.7)
 redis_client = redis.StrictRedis(
     host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True
 )
-toncenter = None
 
 MY_ADDRESS = Address(os.getenv("MY_ADDRESS")).to_string(False)
-print(MY_ADDRESS)
 
 
 async def on_tick_success(watchmaker: str, base_asset_price: float, new_alarm_id: int):
@@ -72,11 +69,10 @@ async def on_wind_success(
     await update_alarm_to_db([alarm, new_alarm])
 
 
-async def main():
-    global toncenter
-    toncenter = await TicTonAsyncClient.init(testnet=True)
+async def subscribe():
+    client = await TicTonAsyncClient.init(testnet=True)
 
-    await toncenter.subscribe(
+    await client.subscribe(
         on_tick_success,
         on_ring_success,
         on_wind_success,
@@ -84,4 +80,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(subscribe())

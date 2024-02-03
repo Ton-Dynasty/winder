@@ -2,11 +2,8 @@ version: '3'
 services:
   app:
     image: skyline9981/ticton-oracle-bot:develop
-    # platform: linux/amd64
+    platform: linux/amd64
     restart: always
-    # build:
-    #   context: .
-    #   dockerfile: ./Dockerfile
     env_file:
       - .env
     depends_on:
@@ -29,7 +26,4 @@ services:
     ports:
       - "3306:3306"
     volumes:
-      - maria-db:/var/lib/mysql
-
-volumes:
-  maria-db:
+      - ./maria-db:/var/lib/mysql
