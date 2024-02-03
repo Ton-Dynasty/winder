@@ -2,25 +2,17 @@ import asyncio
 import os
 from dotenv import load_dotenv
 import logging
+from typing import List, Dict
 
 
-from tonsdk.utils import Address
-from tonsdk.contract.wallet import Wallets, WalletVersionEnum
-
-from oracle_interface import tick, wind, ring
-from oracle_interface import (
-    get_total_amount,
-    get_alarm_info,
-    check_alarms,
-    get_address_balance,
-    get_token_balance,
-)
-from oracle_interface import to_usdt, to_ton, to_bigint
-from utils import float_conversion, int_conversion
 from market_price import get_ton_usdt_price
-from mariadb_connector import get_alarm_from_db, update_alarm_to_db
+from mariadb_connector import get_alarm_from_db, update_alarm_to_db, Alarm
+
+from sdk import TicTonAsyncClient, FixedFloat
 
 load_dotenv()
+
+THRESHOLD_PRICE = os.getenv("THRESHOLD_PRICE", 0.7)
 
 # set up logger
 logger = logging.getLogger(__name__)
@@ -32,97 +24,7 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
-THRESHOLD_PRICE = (
-    float_conversion(os.getenv("THRESHOLD_PRICE")) * to_usdt(1) // to_ton(1)
-)
-MIN_BASEASSET_THRESHOLD = to_ton(1)
-EXTRA_FEES = to_ton(1)
-ORACLE = Address(os.getenv("ORACLE_ADDRESS"))
-
-MNEMONICS, PUB_K, PRIV_K, WALLET = Wallets.from_mnemonics(
-    mnemonics=str(os.getenv("MNEMONICS")).split(" "),
-    version=WalletVersionEnum.v4r2,
-    workchain=0,
-)
-QUOTE_JETTON_WALLET = Address(os.getenv(("QUOTE_JETTON_WALLET_ADDRESS")))
-
-
-async def load_alarms():
-    return await get_alarm_from_db()
-
-
-async def save_alarms(updated_alarms):
-    await update_alarm_to_db(updated_alarms)
-
-
-async def find_active_alarm():
-    alarms = await load_alarms()
-    total_alarms = await get_total_amount()
-
-    if alarms is None:
-        return []
-
-    # Determine if there are new alarms and which are active
-    alarms_to_check = []
-    for i in range(total_alarms):
-        if i not in alarms or (
-            alarms[i]["address"] != "is Mine" and alarms[i]["state"] == "active"
-        ):
-            alarms_to_check.append(i)
-    logger.info(f"Alarms to Check: {alarms_to_check}")
-    # Check alarms and get active alarms [(id, address)]
-    active_alarms = await check_alarms(alarms_to_check)
-
-    return active_alarms
-
-
-async def estimate(alarm: tuple, price: float, base_bal, quote_bal):
-    logger.info(f"Estimate Alarm {alarm[0]}")
-    alarm_info = await get_alarm_info(alarm[1])  # alarm[1] is address
-    new_price = float_conversion(price) * to_usdt(1) // to_ton(1)
-    old_price = alarm_info["base_asset_price"]
-    price_delta = abs(new_price - old_price)
-
-    if price_delta < THRESHOLD_PRICE:
-        return None
-
-    if new_price > old_price:
-        # Timekeeper will pay quote asset and buy base asset
-        need_quote_asset = int_conversion(
-            new_price * 2 * MIN_BASEASSET_THRESHOLD
-            + old_price * MIN_BASEASSET_THRESHOLD
-        )
-        need_base_asset = MIN_BASEASSET_THRESHOLD + EXTRA_FEES
-        max_buy_num = alarm_info["base_asset_scale"]
-    else:
-        # Timekeeper will pay base asset and buy quote asset
-        need_quote_asset = int_conversion(
-            new_price * 2 * MIN_BASEASSET_THRESHOLD
-            - old_price * MIN_BASEASSET_THRESHOLD
-        )
-        need_base_asset = MIN_BASEASSET_THRESHOLD * 3 + EXTRA_FEES
-        max_buy_num = alarm_info["quote_asset_scale"]
-
-    buy_num = await check_balance(
-        to_bigint(base_bal),
-        to_bigint(quote_bal),
-        to_bigint(need_base_asset),
-        to_bigint(need_quote_asset),
-        max_buy_num,
-    )
-    if buy_num is None:
-        return None
-
-    return {
-        "alarm_id": alarm[0],
-        "new_price": new_price,
-        "need_quote_asset": to_bigint(max(0, need_quote_asset)),
-        "need_base_asset": to_bigint(max(0, need_base_asset)),
-        "buy_num": buy_num,
-        "price_delta": round(
-            float(int_conversion(price_delta * to_ton(1) / to_usdt(1))), 9
-        ),
-    }
+toncenter = None
 
 
 async def check_balance(
@@ -155,11 +57,13 @@ async def check_balance(
     return buy_num
 
 
-async def get_max_profit_dp(profitable_alarms, base_bal, quote_bal, fee=0.55):
+async def get_max_profit_dp(
+    profitable_alarms: List[Dict], base_bal: int, quote_bal: int, fee: float = 0.55
+):
     try:
         n = len(profitable_alarms)
-        base_unit = to_bigint(to_ton(1))
-        quote_unit = to_bigint(to_usdt(1))
+        base_unit = 1 * 10**9
+        quote_unit = 1 * 10**6
         logger.info(f"Base Bal: {base_bal}")
         logger.info(f"Quote Bal: {quote_bal}")
         logger.info(f"Fee: {fee}")
@@ -186,11 +90,16 @@ async def get_max_profit_dp(profitable_alarms, base_bal, quote_bal, fee=0.55):
                 for b in range(0, base_bal, base_unit):
                     b_idx = b // base_unit
                     alarm = profitable_alarms[i - 1]
-                    max_buy = min(
-                        alarm["buy_num"],
-                        q // alarm["need_quote_asset"],
-                        b // alarm["need_base_asset"],
-                    )
+                    if alarm["need_base_asset"] == 0:
+                        max_buy = min(alarm["buy_num"], q // alarm["need_quote_asset"])
+                    elif alarm["need_quote_asset"] == 0:
+                        max_buy = min(alarm["buy_num"], b // alarm["need_base_asset"])
+                    else:
+                        max_buy = min(
+                            alarm["buy_num"],
+                            q // alarm["need_quote_asset"],
+                            b // alarm["need_base_asset"],
+                        )
 
                     for k in range(max_buy + 1):
                         cost_quote = k * alarm["need_quote_asset"]
@@ -236,90 +145,87 @@ async def get_max_profit_dp(profitable_alarms, base_bal, quote_bal, fee=0.55):
         return 0, []
 
 
-async def wind_alarms(active_alarms, price, base_bal, quote_bal):
-    if active_alarms == []:
-        return
-    profitable_alarms = []
-    for alarm in active_alarms:
-        alarm_info = await estimate(alarm, price, base_bal, quote_bal)
-        if alarm_info:
-            profitable_alarms.append(alarm_info)
-    if profitable_alarms == []:
-        logger.info("No Profitable Alarms")
-    else:  # Wind alarms
-        logger.info(f"Profitable Alarms: {profitable_alarms}")
-
-    max_profit, strategy = await get_max_profit_dp(
-        profitable_alarms, base_bal, quote_bal
-    )
-    logger.info(f"Optimization Strategy: {strategy}")
-    logger.info(f"Max Profit: {max_profit}")
-
-    for alarm_info in strategy:
-        await wind(
-            timekeeper=WALLET,
-            oracle=ORACLE,
-            alarm_id=int(alarm_info["alarm_id"]),
-            buy_num=alarm_info["buy_num"],
-            new_price=alarm_info["new_price"],
-            need_quoate_asset=alarm_info["need_quote_asset"],
-            need_base_asset=alarm_info["need_base_asset"],
-        )
-        base_bal -= alarm_info["need_base_asset"]
-        quote_bal -= alarm_info["need_quote_asset"]
-        logger.info(f"Alarm {alarm_info['alarm_id']} Wind Successfully")
-
-
-async def tick_one_scale(price, base_bal, quote_bal):
-    pass  # In V0, we don't need to tick when there is no active alarms
-    # if to_bigint(base_bal) < to_ton(3):
-    #     print("Insufficient base asset balance")
-    #     return None
-    # if to_bigint(quote_bal) < to_usdt(price):
-    #     print("Insufficient quote asset balance")
-    #     return None
-    # tick_result, alarm_id = await tick(
-    #     watchmaker=WALLET,
-    #     oracle=ORACLE,
-    #     quote_asset_to_transfer=price,
-    #     base_asset_to_transfer=1,
-    # )
-    # print("Tick result:", tick_result)
-    # print("Alarm id:", alarm_id)
-    #
-    # if tick_result["@type"] == "ok":
-    #     alarm_dict = await load_alarms()
-    #     alarm_dict[str(alarm_id)] = {
-    #         "address": "is Mine",
-    #         "state": "active",
-    #         "price": price,
-    #     }
-    #     await save_alarms(alarm_dict)
-
-
 async def main():
+    global toncenter
+    toncenter = await TicTonAsyncClient.init(testnet=True)
     while True:
         try:
-            price = await get_ton_usdt_price()
-            if price is None:
-                continue
-            price = round(float(price), 9)
-            # =========== New Price Get ===========
-            logger.info("========== New Price Get ===========")
-            logger.info(f"New Price: {price}")
-            base_bal = int(await get_address_balance(WALLET.address.to_string()))
-            quote_bal = int(await get_token_balance(QUOTE_JETTON_WALLET.to_string()))
-            active_alarms = await find_active_alarm()
-            logger.info(f"Active Alarms: {active_alarms}")
-            if active_alarms == []:
-                logging.info("No Active Alarms")
-                await tick_one_scale(price, base_bal, quote_bal)
+            logger.info("=======================")
+            alarms = await get_alarm_from_db("state = 'active' AND remain_scale > 0")
+            logger.info(f"Active Alarms: \n{alarms}")
+            if alarms is not None and len(alarms) > 0:
+                new_price = await get_ton_usdt_price()
+                if new_price is None:
+                    return
+                new_price = round(new_price, 9)
+                logger.info(f"New Price: {new_price}")
+                (
+                    base_balance,
+                    quote_balance,
+                ) = await toncenter._get_user_balance()
 
-            await wind_alarms(active_alarms, price, base_bal, quote_bal)
+                profitable_alarms = []
+                for alarm in alarms:
+                    old_price = float(alarm.price)
+                    price_delta = abs(new_price - old_price)
+                    if price_delta > float(THRESHOLD_PRICE):
+                        if alarm.is_mine:
+                            result = await toncenter.ring(alarm.id)
+                            logger.info(f"Ring result: {result}")
+                            continue
+                        (
+                            can_buy,
+                            need_asset_tup,
+                            alarm_info,
+                        ) = await toncenter._estimate_wind(alarm.id, 1, new_price)
 
+                        if not can_buy:
+                            continue
+
+                        need_base_asset = need_asset_tup[0]
+                        need_quote_asset = need_asset_tup[1]
+
+                        if new_price > old_price:
+                            max_buy_num = alarm_info["base_asset_scale"]
+                        else:
+                            max_buy_num = alarm_info["quote_asset_scale"]
+
+                        buy_num = await check_balance(
+                            base_balance,
+                            quote_balance,
+                            need_base_asset,
+                            need_quote_asset,
+                            max_buy_num,
+                        )
+                        if isinstance(buy_num, int):
+                            profitable_alarms.append(
+                                {
+                                    "id": alarm.id,
+                                    "price_delta": price_delta,
+                                    "need_base_asset": int(need_base_asset),
+                                    "need_quote_asset": int(need_quote_asset),
+                                    "buy_num": buy_num,
+                                }
+                            )
+
+                max_profit, strategy = await get_max_profit_dp(
+                    profitable_alarms, int(base_balance), int(quote_balance)
+                )
+                logger.info(f"Strategy: {strategy}")
+                for wind_alarm in strategy:
+                    result = await toncenter.wind(
+                        alarm_id=wind_alarm["id"],
+                        buy_num=wind_alarm["buy_num"],
+                        new_price=new_price,
+                        skip_estimate=True,
+                        need_base_asset=wind_alarm["need_base_asset"],
+                        need_quote_asset=wind_alarm["need_quote_asset"],
+                    )
+                    logger.info(f"Wind result: {result}")
+            else:
+                logger.info("No alarms found in DB")
         except Exception as e:
-            logger.error(f"Error while running bot {e}")
-            continue
+            logger.error(f"Error in main {e}")
 
 
 if __name__ == "__main__":

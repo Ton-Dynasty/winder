@@ -63,7 +63,12 @@ async def set_ton_usdt_prices():
 
 
 async def get_ton_usdt_price():
-    return redis_client.get("ton_usdt_price")
+    price = redis_client.get("ton_usdt_price")
+    if isinstance(price, str):
+        price = float(price)
+        return price
+    else:  # price is None
+        return None
 
 
 if __name__ == "__main__":

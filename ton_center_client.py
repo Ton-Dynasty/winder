@@ -11,11 +11,17 @@ class ToncenterWrongResult(Exception):
 
 
 class TonCenterTonClient:
-    def __init__(self, api_key):
-        self.provider = ToncenterClient(
-            base_url="https://testnet.toncenter.com/api/v2/",
-            api_key=api_key,
-        )
+    def __init__(self, api_key, testnet=True):
+        if testnet:
+            self.provider = ToncenterClient(
+                base_url="https://testnet.toncenter.com/api/v2/",
+                api_key=api_key,
+            )
+        else:
+            self.provider = ToncenterClient(
+                base_url="https://toncenter.com/api/v2/",
+                api_key=api_key,
+            )
 
     async def run_get_method(self, addr: str, method: str, stack: list):
         addr = prepare_address(addr)
