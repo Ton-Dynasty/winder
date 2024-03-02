@@ -7,7 +7,7 @@ import logging
 from typing import List, Dict, Union
 from threading import Thread
 from decimal import Decimal
-
+import time
 
 from market_price import get_ton_usdt_price, set_ton_usdt_prices
 from subscriber import subscribe
@@ -101,6 +101,14 @@ async def main():
             old_price = float(alarm.price)
             price_delta = abs(new_price - old_price)
             if price_delta < float(THRESHOLD_PRICE):
+                if alarm.is_mine and alarm.created_at < (time.time() - 60):
+                    try:
+                        result = await client.ring(alarm.id)
+                        logger.info(f"ring result: {result}")
+                        continue
+                    except Exception as e:
+                        logger.error(f"Error in ring {e}")
+                        continue
                 continue
             if alarm.is_mine:
                 try:
