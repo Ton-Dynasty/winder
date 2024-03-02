@@ -1,4 +1,16 @@
-# Ticton Oracle Bot
+# 🚀 TicTon Oracle Competition2: Arbitrage 🚀
+
+## How To Join ?
+
+➖ Join our [Community](https://t.me/TictonOfficial) and register via the [TicTon bot](https://t.me/TicTon_bot) and run the program from [GitHub](https://github.com/Ton-Dynasty/ticton-oracle-automation/tree/main). 
+
+➖ Contributors to price stability earn points.
+
+➖ Top 50% participants receive 💎 NFTs. 
+
+➖ Higher-tier NFTs will get priority for early TIC TOKEN releases.
+
+➖ Testing Period: March 2nd to March 10th.
 
 ## Overview
 The **Ticton Oracle Bot** is an arbitrage bot that operates by fetching the average market price of TON/USDT from multiple exchanges. It then quotes this price to the Ticton Oracle. In doing so, it seeks arbitrage opportunities among other quoters. 
