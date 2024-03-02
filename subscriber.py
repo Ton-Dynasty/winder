@@ -1,13 +1,18 @@
-from ticton import TicTonAsyncClient, FixedFloat
+from ticton import TicTonAsyncClient
+from ticton.callbacks import (
+    OnTickSuccessParams,
+    OnRingSuccessParams,
+    OnWindSuccessParams,
+)
 import asyncio
 import os
 from dotenv import load_dotenv
 import logging
 import redis
-from mariadb_connector import Alarm, update_alarm_to_db, get_alarm_from_db
-from market_price import get_ton_usdt_price
+from mariadb_connector import Alarm, update_alarm_to_db
 
 from tonsdk.utils import Address
+from pytoncenter.address import Address as PyAddress
 
 
 load_dotenv()
@@ -33,39 +38,44 @@ redis_client = redis.StrictRedis(
     host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True
 )
 
-MY_ADDRESS = Address(os.getenv("MY_ADDRESS")).to_string(False)
+MY_ADDRESS = PyAddress(os.getenv("MY_ADDRESS", "")).to_string(False)
 
 
-async def on_tick_success(watchmaker: str, base_asset_price: float, new_alarm_id: int):
-    logger.info(f"Tick received: {watchmaker} {base_asset_price} {new_alarm_id}")
-    price = round(float(base_asset_price), 9)
-    watchmaker = Address(watchmaker).to_string(False)
+async def on_tick_success(on_tick_success_params: OnTickSuccessParams):
+    logger.info(f"Tick received: {on_tick_success_params}")
+    price = round(float(on_tick_success_params.base_asset_price), 9)
+    watchmaker = PyAddress(on_tick_success_params.watchmaker).to_string(False)
     is_mine = watchmaker == MY_ADDRESS
-    alarm = Alarm(id=new_alarm_id, price=price, is_mine=is_mine)
+    alarm = Alarm(
+        id=on_tick_success_params.new_alarm_id,
+        price=price,
+        is_mine=is_mine,
+        created_at=on_tick_success_params.created_at,
+    )
     await update_alarm_to_db([alarm])
 
 
-async def on_ring_success(alarm_id: int):
-    logger.info(f"Ring received: alarm_id={alarm_id}")
-    alarm = Alarm(id=alarm_id, state="uninitialized")
-    alarm = await update_alarm_to_db([alarm])
+async def on_ring_success(on_ring_success_params: OnRingSuccessParams):
+    logger.info(f"Ring received: {on_ring_success_params}")
+    alarm = Alarm(id=on_ring_success_params.alarm_id, state="uninitialized")
+    await update_alarm_to_db([alarm])
 
 
-async def on_wind_success(
-    timekeeper: str,
-    alarm_id: int,
-    new_base_asset_price: float,
-    remain_scale: int,
-    new_alarm_id: int,
-):
-    logger.info(
-        f"Wind received: {timekeeper} {alarm_id} {new_base_asset_price} {new_alarm_id} {remain_scale}"
-    )
-    price = round(float(new_base_asset_price), 9)
-    timekeeper = Address(timekeeper).to_string(False)
+async def on_wind_success(on_wind_success_params: OnWindSuccessParams):
+    logger.info(f"Wind received: {on_wind_success_params}")
+    price = round(float(on_wind_success_params.new_base_asset_price), 9)
+    timekeeper = PyAddress(on_wind_success_params.timekeeper).to_string(False)
     is_mine = timekeeper == MY_ADDRESS
-    alarm = Alarm(id=alarm_id, remain_scale=remain_scale)
-    new_alarm = Alarm(id=new_alarm_id, price=price, is_mine=is_mine)
+    alarm = Alarm(
+        id=on_wind_success_params.alarm_id,
+        remain_scale=on_wind_success_params.remain_scale,
+    )
+    new_alarm = Alarm(
+        id=on_wind_success_params.new_alarm_id,
+        price=price,
+        is_mine=is_mine,
+        created_at=on_wind_success_params.created_at,
+    )
     await update_alarm_to_db([alarm, new_alarm])
 
 
@@ -73,9 +83,10 @@ async def subscribe():
     client = await TicTonAsyncClient.init(testnet=True)
 
     await client.subscribe(
-        on_tick_success,
-        on_ring_success,
-        on_wind_success,
+        on_tick_success=on_tick_success,
+        on_wind_success=on_wind_success,
+        on_ring_success=on_ring_success,
+        start_lt="latest",
     )
 
 

@@ -2,7 +2,7 @@ import os
 import re
 from dotenv import load_dotenv
 import asyncio
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 import mysql.connector as connector
 
@@ -27,20 +27,20 @@ class Alarm:
         self,
         id: int,
         price: Optional[float] = 0,
-        address: Optional[str] = None,
+        created_at: Optional[int] = 0,
         state: Literal["uninitialized", "active"] = "active",
         is_mine: bool = False,
         remain_scale: int = 1,
     ):
         self.id = id
-        self.address = address
         self.state = state
         self.price = price
         self.is_mine = is_mine
         self.remain_scale = remain_scale
+        self.created_at = created_at
 
     def __repr__(self):
-        return f"Alarm(id={self.id}, address={self.address}, state={self.state}, price={self.price}, is_mine={self.is_mine}), remain_scale={self.remain_scale}\n"
+        return f"Alarm(id={self.id}, state={self.state}, price={self.price}, is_mine={self.is_mine}), remain_scale={self.remain_scale}, created_at={self.created_at}\n"
 
 
 async def create_connection():
@@ -67,11 +67,11 @@ async def init():
             create_table_sql = """
             CREATE TABLE IF NOT EXISTS alarms (
                 id INT PRIMARY KEY,
-                address VARCHAR(255),
                 state VARCHAR(100) DEFAULT 'active',
                 price DECIMAL(16, 9) DEFAULT 0,
                 is_mine BOOLEAN DEFAULT FALSE,
                 remain_scale INT DEFAULT 1,
+                created_at INT DEFAULT 0
             )
             """
             cursor.execute(create_table_sql)
@@ -92,14 +92,28 @@ async def get_alarm_from_db(filter: Optional[str] = None):
         if connection is not None and connection.is_connected():
             cursor = connection.cursor()
             select_sql = """
-            SELECT id, address, state, price, is_mine, remain_scale FROM alarms
+            SELECT id,state, price, is_mine, remain_scale, created_at FROM alarms
             WHERE {}
             """
             select_sql = select_sql.format("1=1" if filter is None else filter)
             cursor.execute(select_sql)
             result = []
-            for id, address, state, price, is_mine, remain_scale in cursor.fetchall():
-                alarm = Alarm(id, price, address, state, is_mine, remain_scale)
+            for (
+                id,
+                state,
+                price,
+                is_mine,
+                remain_scale,
+                created_at,
+            ) in cursor.fetchall():
+                alarm = Alarm(
+                    id=id,
+                    state=state,
+                    price=price,
+                    is_mine=is_mine,
+                    remain_scale=remain_scale,
+                    created_at=created_at,
+                )
                 result.append(alarm)
 
             cursor.close()
@@ -120,25 +134,25 @@ async def update_alarm_to_db(alarms: list[Alarm]):
         if connection is not None and connection.is_connected():
             cursor = connection.cursor()
             update_sql = """
-                INSERT INTO alarms (id, address, state, price, is_mine, remain_scale)
+                INSERT INTO alarms (id, state, price, is_mine, remain_scale, created_at)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
-                address = VALUES(address),
                 state = VALUES(state),
                 price = VALUES(price),
                 is_mine = VALUES(is_mine),
-                remain_scale = VALUES(remain_scale)
+                remain_scale = VALUES(remain_scale),
+                created_at = VALUES(created_at)
             """
             insert_list = []
             for alarm in alarms:
                 insert_list.append(
                     (
                         alarm.id,
-                        alarm.address,
                         alarm.state,
                         alarm.price,
                         alarm.is_mine,
                         alarm.remain_scale,
+                        alarm.created_at,
                     )
                 )
             cursor.executemany(update_sql, insert_list)
@@ -152,6 +166,29 @@ async def update_alarm_to_db(alarms: list[Alarm]):
 
     except Exception as e:
         logger.error(f"Error while updating alarm info to MariaDB {e}")
+
+
+async def get_latest_alarm_id():
+    try:
+        connection = await create_connection()
+        if connection is not None and connection.is_connected():
+            cursor = connection.cursor()
+            select_sql = """
+            SELECT id FROM alarms ORDER BY id DESC LIMIT 1
+            """
+            cursor.execute(select_sql)
+            latest_id = cursor.fetchone()
+
+            cursor.close()
+            connection.close()
+
+            return latest_id[0] if latest_id is not None else 0
+        else:
+            return 0
+
+    except Exception as e:
+        logger.error(f"Error while fetching latest alarm id from MariaDB {e}")
+        return 0
 
 
 async def main():

@@ -54,7 +54,7 @@ async def fetch_ton_usdt_prices():
 
 async def set_ton_usdt_prices():
     while True:
-        await asyncio.sleep(1)
+        await asyncio.sleep(3)
         prices = await fetch_ton_usdt_prices()
         if prices:
             price = sum(prices) / len(prices)
