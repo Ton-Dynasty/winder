@@ -9,11 +9,13 @@
 
 ➖ Top 50% participants receive 💎 NFTs. 
 
+➖ Priority: 💎 > 🥇 > 🥈 > 🥉
+
 ➖ Higher-tier NFTs will get priority for early TIC TOKEN releases.
 
 ➖ Testing Period: March 2nd to March 10th.
 
-📣 We also have testing activities for general users, which can be referred to via the following referenced in the following [video](https://www.youtube.com/watch?v=LCuTCQmP_rI) and [link](https://t.me/TictonOfficial/52).
+📣 We also have **⭐️TicTon Oracle Competition1: Tick & Ring⭐️** for general users, which can refer to via the following reference in the following [video](https://www.youtube.com/watch?v=LCuTCQmP_rI) and [link](https://t.me/TictonOfficial/52).
 
 ## Overview
 The **Ticton Oracle Bot** is an arbitrage bot that operates by fetching the average market price of TON/USDT from multiple exchanges. It then quotes this price to the Ticton Oracle. In doing so, it seeks arbitrage opportunities among other quoters. 
