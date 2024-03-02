@@ -14,7 +14,7 @@ services:
     image: "redis:alpine"
     restart: always
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT}:6379"
 
   mariadb:
     image: "mariadb"
@@ -24,6 +24,6 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
-      - "3306:3306"
+      - "${MYSQL_PORT}:3306"
     volumes:
       - ./maria-db:/var/lib/mysql
