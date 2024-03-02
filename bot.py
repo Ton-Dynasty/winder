@@ -17,7 +17,7 @@ from strategy import ProfitableAlarm, Balance, greedy_strategy
 
 load_dotenv()
 
-THRESHOLD_PRICE = os.getenv("THRESHOLD_PRICE", 0.7)
+THRESHOLD_PRICE = os.getenv("TICTON_THRESHOLD_PRICE", 0.7)
 
 # set up logger
 logger = logging.getLogger(__name__)
