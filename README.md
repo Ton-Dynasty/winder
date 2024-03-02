@@ -62,7 +62,7 @@ If you want to understand the arbitrage mechanism of Tic Ton Oracle, you can ref
      ```bash
      docker stop ticton-oracle-bot-app-1
      ```
-6. **Restart the Applicaiton**:
+6. **Restart the Application**:
      ```bash
      docker restart ticton-oracle-bot-app-1
 
