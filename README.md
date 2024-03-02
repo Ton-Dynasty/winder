@@ -1,5 +1,6 @@
-# 🚀 TicTon Oracle Competition2: Arbitrage 🚀
-[![Static Badge](https://img.shields.io/badge/Tic_Ton-Community-blue?style=for-the-badge&logo=Telegram&labelColor=blue)](https://t.me/TictonOfficial)
+# 🚀 Tic Ton Oracle Competition 2: Arbitrage 🚀
+[![Static Badge](https://img.shields.io/badge/Tic_Ton-Telegram-blue?style=for-the-badge&logo=Telegram&labelColor=blue)](https://t.me/TictonOfficial)
+[![Static Badge](https://img.shields.io/badge/Tic_Ton-Twitter-black?style=for-the-badge&logo=X&labelColor=black)](https://twitter.com/TicTonOracle)
 
 ![Tic ToN 128](https://github.com/Ton-Dynasty/ticton-oracle-automation/assets/87699256/908f33c6-b2f1-4f79-bf8b-ad132c364929)
 ## How To Join ?
@@ -7,13 +8,9 @@
 - Join our [Community](https://t.me/TictonOfficial) and register via the [TicTon bot](https://t.me/TicTon_bot) and run the program from [GitHub](https://github.com/Ton-Dynasty/ticton-oracle-automation/tree/main). 
 
 - Contributors to price stability earn points.
-
 - Top 50% participants receive 💎 NFTs. 
-
 - Priority: 💎 > 🥇 > 🥈 > 🥉
-
 - Higher-tier NFTs will get priority for early TIC TOKEN releases.
-
 - Testing Period: March 2nd to March 10th.
 > [!IMPORTANT]
 > We also have **⭐️ TicTon Oracle Competition1: Tick & Ring ⭐️** for general users, which can refer to the following [video](https://www.youtube.com/watch?v=LCuTCQmP_rI) and [link](https://t.me/TictonOfficial/52).
