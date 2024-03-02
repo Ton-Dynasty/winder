@@ -50,20 +50,19 @@ If you want to understand the arbitrage mechanism of Tic Ton Oracle, you can ref
      ```bash
      docker-compose up -d
      ```
-   - This command will start all the services defined in your `docker-compose.yml` file.
-   - Ensure that the `.env` file is correctly set up, as the Docker containers will rely on these environment variables.
+  > [!WARNING]
+  > This command will start all the services defined in your `docker-compose.yml` file.
+  > Ensure that the `.env` file is correctly set up, as the Docker containers will rely on these environment variables.
+
 3. **Check the Logs**:
-   - Run the following command to check the logs:
      ```bash
      docker logs ticton-oracle-bot-app-1 -f
      ```
 4. **Stop the Application**:
-   - Run the following command to stop the application:
      ```bash
      docker stop ticton-oracle-bot-app-1
      ```
 6. **Restart the Applicaiton**:
-   - Run the following command to restart the application:
      ```bash
      docker restart ticton-oracle-bot-app-1
 
