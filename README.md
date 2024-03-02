@@ -13,7 +13,7 @@
 
 ➖ Testing Period: March 2nd to March 10th.
 
-📣 We also have testing activities for general users, which can be referred to via the following [link](https://t.me/TictonOfficial/52).
+📣 We also have testing activities for general users, which can be referred to via the following referenced in the following [video](https://www.youtube.com/watch?v=LCuTCQmP_rI) and [link](https://t.me/TictonOfficial/52).
 
 ## Overview
 The **Ticton Oracle Bot** is an arbitrage bot that operates by fetching the average market price of TON/USDT from multiple exchanges. It then quotes this price to the Ticton Oracle. In doing so, it seeks arbitrage opportunities among other quoters. 
