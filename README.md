@@ -67,7 +67,7 @@ The **Ticton Oracle Bot** is an arbitrage bot that operates by fetching the aver
 
 ## Completely Terminate the Application
 ```bash
-docekr compose down
+docker compose down
 docker system prune -a --volumes
 rm -rf maria-db
 ```
