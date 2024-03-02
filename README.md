@@ -64,6 +64,7 @@ If you want to understand the arbitrage mechanism of Tic Ton Oracle, you can ref
      docker stop ticton-oracle-bot-app-1
      ```
 6. **Restart the Application**:
+   - It will start recording again from the Alarm information after the last checked Alarm ID when it was stoped.
      ```bash
      docker restart ticton-oracle-bot-app-1
 
