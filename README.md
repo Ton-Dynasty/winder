@@ -1,6 +1,7 @@
 # 🚀 TicTon Oracle Competition2: Arbitrage 🚀
-![Tic ToN 128](https://github.com/Ton-Dynasty/ticton-oracle-automation/assets/87699256/908f33c6-b2f1-4f79-bf8b-ad132c364929)
+![Static Badge](https://img.shields.io/badge/Tic_Ton-Community-blue?style=for-the-badge&logo=Telegram&labelColor=blue)
 
+![Tic ToN 128](https://github.com/Ton-Dynasty/ticton-oracle-automation/assets/87699256/908f33c6-b2f1-4f79-bf8b-ad132c364929)
 ## How To Join ?
 
 - Join our [Community](https://t.me/TictonOfficial) and register via the [TicTon bot](https://t.me/TicTon_bot) and run the program from [GitHub](https://github.com/Ton-Dynasty/ticton-oracle-automation/tree/main). 
