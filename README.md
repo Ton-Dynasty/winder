@@ -16,7 +16,7 @@
 > We also have **⭐️ TicTon Oracle Competition1: Tick & Ring ⭐️** for general users, which can refer to the following [Step-by-Step: How to Earn NFTs Playing Tic Ton Tournament](https://www.youtube.com/watch?v=LCuTCQmP_rI) and [Introduction of Competition1](https://t.me/TictonOfficial/52).
 
 ## Overview
-The **Ticton Oracle Bot** is an arbitrage bot that operates by fetching the average market price of TON/USDT from multiple exchanges. It then quotes this price to the Ticton Oracle. In doing so, it seeks arbitrage opportunities among other quoters. 
+The **Ticton Oracle Bot** is an arbitrage bot that checks the current Alarm quotes on the Oracle by fetching the average market price of TON/USDT from multiple exchanges. When it detects an Alarm significantly deviating from the market price (which can be adjusted via `TICTON_THRESHOLD_PRICE` in `.evn` file for price deviation range), it performs arbitrage against it while also quoting to the Oracle.
 
 If you want to understand the arbitrage mechanism of Tic Ton Oracle, you can refer to the following [2 Minute to Learn How TIC TON Oracle Works](https://www.youtube.com/watch?v=_EwAkiGiw-U&t=26s).
 
