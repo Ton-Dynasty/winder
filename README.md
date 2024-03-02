@@ -3,19 +3,19 @@
 
 ## How To Join ?
 
-➖ Join our [Community](https://t.me/TictonOfficial) and register via the [TicTon bot](https://t.me/TicTon_bot) and run the program from [GitHub](https://github.com/Ton-Dynasty/ticton-oracle-automation/tree/main). 
+- Join our [Community](https://t.me/TictonOfficial) and register via the [TicTon bot](https://t.me/TicTon_bot) and run the program from [GitHub](https://github.com/Ton-Dynasty/ticton-oracle-automation/tree/main). 
 
-➖ Contributors to price stability earn points.
+- Contributors to price stability earn points.
 
-➖ Top 50% participants receive 💎 NFTs. 
+- Top 50% participants receive 💎 NFTs. 
 
-➖ Priority: 💎 > 🥇 > 🥈 > 🥉
+- Priority: 💎 > 🥇 > 🥈 > 🥉
 
-➖ Higher-tier NFTs will get priority for early TIC TOKEN releases.
+- Higher-tier NFTs will get priority for early TIC TOKEN releases.
 
-➖ Testing Period: March 2nd to March 10th.
-
-📣 We also have **⭐️TicTon Oracle Competition1: Tick & Ring⭐️** for general users, which can refer to via the following reference in the following [video](https://www.youtube.com/watch?v=LCuTCQmP_rI) and [link](https://t.me/TictonOfficial/52).
+- Testing Period: March 2nd to March 10th.
+> [!IMPORTANT]
+> We also have **⭐️ TicTon Oracle Competition1: Tick & Ring ⭐️** for general users, which can refer to via the following reference in the following [video](https://www.youtube.com/watch?v=LCuTCQmP_rI) and [link](https://t.me/TictonOfficial/52).
 
 ## Overview
 The **Ticton Oracle Bot** is an arbitrage bot that operates by fetching the average market price of TON/USDT from multiple exchanges. It then quotes this price to the Ticton Oracle. In doing so, it seeks arbitrage opportunities among other quoters. 
