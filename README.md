@@ -55,10 +55,11 @@ If you want to understand the arbitrage mechanism of Tic Ton Oracle, you can ref
   > Ensure that the `.env` file is correctly set up, as the Docker containers will rely on these environment variables.
 
 3. **Check the Logs**:
+   - Checking the current status of the bot will display the quotes received by the Oracle, show which Alarm IDs are available for arbitrage, and detail the arbitrage process.
      ```bash
      docker logs ticton-oracle-bot-app-1 -f
      ```
-4. **Stop the Application**:
+5. **Stop the Application**:
      ```bash
      docker stop ticton-oracle-bot-app-1
      ```
