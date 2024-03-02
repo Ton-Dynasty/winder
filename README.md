@@ -1,4 +1,5 @@
 # 🚀 TicTon Oracle Competition2: Arbitrage 🚀
+![Tic ToN 128](https://github.com/Ton-Dynasty/ticton-oracle-automation/assets/87699256/908f33c6-b2f1-4f79-bf8b-ad132c364929)
 
 ## How To Join ?
 
@@ -11,6 +12,8 @@
 ➖ Higher-tier NFTs will get priority for early TIC TOKEN releases.
 
 ➖ Testing Period: March 2nd to March 10th.
+
+📣 We also have testing activities for general users, which can be referred to via the following [link](https://t.me/TictonOfficial/52).
 
 ## Overview
 The **Ticton Oracle Bot** is an arbitrage bot that operates by fetching the average market price of TON/USDT from multiple exchanges. It then quotes this price to the Ticton Oracle. In doing so, it seeks arbitrage opportunities among other quoters. 
