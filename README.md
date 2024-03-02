@@ -18,6 +18,8 @@
 ## Overview
 The **Ticton Oracle Bot** is an arbitrage bot that operates by fetching the average market price of TON/USDT from multiple exchanges. It then quotes this price to the Ticton Oracle. In doing so, it seeks arbitrage opportunities among other quoters. 
 
+If you want to understand the arbitrage mechanism of Tic Ton Oracle, you can refer to the following [2 Minute to Learn How TIC TON Oracle Works](https://www.youtube.com/watch?v=_EwAkiGiw-U&t=26s).
+
 ## Prerequisites
 - [Docker](https://docs.docker.com/engine/install/)
 - [Docker Compose](https://docs.docker.com/compose/install/)
