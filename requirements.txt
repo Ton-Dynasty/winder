@@ -43,7 +43,7 @@ PyYAML==6.0.1
 redis==5.0.1
 requests==2.31.0
 six==1.16.0
-ticton==0.1.23
+ticton==0.1.25
 tomli==2.0.1
 tonpy==0.0.0.1.2b0
 tonsdk==1.0.13

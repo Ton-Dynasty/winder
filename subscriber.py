@@ -46,6 +46,10 @@ async def on_tick_success(on_tick_success_params: OnTickSuccessParams):
     price = round(float(on_tick_success_params.base_asset_price), 9)
     watchmaker = PyAddress(on_tick_success_params.watchmaker).to_string(False)
     is_mine = watchmaker == MY_ADDRESS
+
+    lt = on_tick_success_params.tx.lt
+    redis_client.set("last_lt", lt)
+
     alarm = Alarm(
         id=on_tick_success_params.new_alarm_id,
         price=price,
@@ -57,6 +61,10 @@ async def on_tick_success(on_tick_success_params: OnTickSuccessParams):
 
 async def on_ring_success(on_ring_success_params: OnRingSuccessParams):
     logger.info(f"Ring received: {on_ring_success_params}")
+
+    lt = on_ring_success_params.tx.lt
+    redis_client.set("last_lt", lt)
+
     alarm = Alarm(id=on_ring_success_params.alarm_id, state="uninitialized")
     await update_alarm_to_db([alarm])
 
@@ -66,6 +74,10 @@ async def on_wind_success(on_wind_success_params: OnWindSuccessParams):
     price = round(float(on_wind_success_params.new_base_asset_price), 9)
     timekeeper = PyAddress(on_wind_success_params.timekeeper).to_string(False)
     is_mine = timekeeper == MY_ADDRESS
+
+    lt = on_wind_success_params.tx.lt
+    redis_client.set("last_lt", lt)
+
     alarm = Alarm(
         id=on_wind_success_params.alarm_id,
         remain_scale=on_wind_success_params.remain_scale,
@@ -81,12 +93,17 @@ async def on_wind_success(on_wind_success_params: OnWindSuccessParams):
 
 async def subscribe():
     client = await TicTonAsyncClient.init(testnet=True)
+    lt = redis_client.get("last_lt")
+    if isinstance(lt, str):
+        lt = int(lt)
+    else:
+        lt = "latest"  # or oldest
 
     await client.subscribe(
         on_tick_success=on_tick_success,
         on_wind_success=on_wind_success,
         on_ring_success=on_ring_success,
-        start_lt="latest",
+        start_lt=lt,
     )
 
 
