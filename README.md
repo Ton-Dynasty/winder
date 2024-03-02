@@ -38,10 +38,10 @@ If you want to understand the arbitrage mechanism of Tic Ton Oracle, you can ref
    - Fill out your `.env` file using `.env.example` as a guide.
    - Below are the parameters that need to be modified in `.env` file
      - `TICTON_TONCENTER_API_KEY`: Obtain your Ton Center Testnet API key from [@tonapibot](https://t.me/tonapibot).
-     - `TICTON_WALLET_MNEMONICS`: Your ton testnet wallet mnemonic, for example: a b c d e f g .....
+     - `TICTON_WALLET_MNEMONICS`: Your ton **testnet** wallet mnemonic, for example: a b c d e f g .....
      - `TICTON_ORACLE_ADDRESS`: The Address of ticton oracle (For this Competition2: kQCQPYxpFyFXxISiA_c42wNYrzcGc29NcFHqrupDTlT3a9It).
      - `TICTON_THRESHOLD_PRICE`: A float value sets a threshold for arbitrage bots to act on price differences. For instance, with TICTON_THRESHOLD_PRICE = 0.5, if Alarm 1's quote is 2.0 and TON's current quote is 2.5, arbitrage will be executed against Alarm 1.
-     - `MY_ADDRESS`: Your ton testnet wallet address.
+     - `MY_ADDRESS`: Your ton **testnet** wallet address.
 
 ## Running the Application
 1. **Docker Compose**: Navigate to the root directory of the project where the `docker-compose.yml` file is located.
