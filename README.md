@@ -1,5 +1,5 @@
 # 🚀 TicTon Oracle Competition2: Arbitrage 🚀
-![Static Badge](https://img.shields.io/badge/Tic_Ton-Community-blue?style=for-the-badge&logo=Telegram&labelColor=blue)
+[![Static Badge](https://img.shields.io/badge/Tic_Ton-Community-blue?style=for-the-badge&logo=Telegram&labelColor=blue)](https://t.me/TictonOfficial)
 
 ![Tic ToN 128](https://github.com/Ton-Dynasty/ticton-oracle-automation/assets/87699256/908f33c6-b2f1-4f79-bf8b-ad132c364929)
 ## How To Join ?
