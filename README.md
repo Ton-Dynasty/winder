@@ -57,16 +57,16 @@ If you want to understand the arbitrage mechanism of Tic Ton Oracle, you can ref
 3. **Check the Logs**:
    - Checking the current status of the bot will display the quotes received by the Oracle, show which Alarm IDs are available for arbitrage, and detail the arbitrage process.
      ```bash
-     docker logs ticton-oracle-bot-app-1 -f
+     docker logs ticton-oracle-automation-app-1 -f
      ```
 5. **Stop the Application**:
      ```bash
-     docker stop ticton-oracle-bot-app-1
+     docker stop ticton-oracle-automation-app-1
      ```
 6. **Restart the Application**:
    - It will start recording again from the Alarm information after the last checked Alarm ID when it was stoped.
      ```bash
-     docker restart ticton-oracle-bot-app-1
+     docker restart ticton-oracle-automation-app-1
 
 ## Completely Terminate the Application
 ```bash
