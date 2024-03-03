@@ -1,4 +1,4 @@
-# 🚀 Tic Ton Oracle Competition 2: Arbitrage 🚀
+![succ](https://github.com/Ton-Dynasty/ticton-oracle-automation/assets/87699256/53a82fc7-a7a2-4cef-9abe-ca41d3d36c7d)# 🚀 Tic Ton Oracle Competition 2: Arbitrage 🚀
 [![Static Badge](https://img.shields.io/badge/Tic_Ton-Telegram-blue?style=for-the-badge&logo=Telegram&labelColor=blue)](https://t.me/TictonOfficial)
 [![Static Badge](https://img.shields.io/badge/Tic_Ton-Twitter-black?style=for-the-badge&logo=X&labelColor=black)](https://twitter.com/TicTonOracle)
 
@@ -59,6 +59,20 @@ If you want to understand the arbitrage mechanism of Tic Ton Oracle, you can ref
      ```bash
      docker logs ticton-oracle-automation-app-1 -f
      ```
+   - Below is the screen of it successfully running.
+   ![succ](https://github.com/Ton-Dynasty/ticton-oracle-automation/assets/87699256/da80a97d-5f94-4195-b91d-af628f144094)
+   - Below is the program receiving a new Tick message and related information about the quote.
+   ![tick_new](https://github.com/Ton-Dynasty/ticton-oracle-automation/assets/87699256/e541e2f1-2363-4aa0-942c-0eee1c6e1191)
+
+   - If the received quote from an Alarm exceeds the TICTON_THRESHOLD_PRICE, it will be placed into Profitable Alarms.
+   ![tg_image_1169475916](https://github.com/Ton-Dynasty/ticton-oracle-automation/assets/87699256/0d2cd261-9b4b-4ff7-be78-1bf42c0de26f)
+
+   - Execute the Wind operation.
+     ![tg_image_986031882](https://github.com/Ton-Dynasty/ticton-oracle-automation/assets/87699256/f37243fa-f143-4631-ae1b-66aa488ca05f)
+   - To determine whether the arbitrage was successful, you can check if the Timekeeper that received the Wind message is yourself.
+     ![gogo09463415246_new](https://github.com/Ton-Dynasty/ticton-oracle-automation/assets/87699256/34ee52fa-3b41-4ae2-adb2-b04bcfae21d7)
+
+
 5. **Stop the Application**:
      ```bash
      docker stop ticton-oracle-automation-app-1
