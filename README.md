@@ -1,4 +1,4 @@
-![succ](https://github.com/Ton-Dynasty/ticton-oracle-automation/assets/87699256/53a82fc7-a7a2-4cef-9abe-ca41d3d36c7d)# 🚀 Tic Ton Oracle Competition 2: Arbitrage 🚀
+# 🚀 Tic Ton Oracle Competition 2: Arbitrage 🚀
 [![Static Badge](https://img.shields.io/badge/Tic_Ton-Telegram-blue?style=for-the-badge&logo=Telegram&labelColor=blue)](https://t.me/TictonOfficial)
 [![Static Badge](https://img.shields.io/badge/Tic_Ton-Twitter-black?style=for-the-badge&logo=X&labelColor=black)](https://twitter.com/TicTonOracle)
 
