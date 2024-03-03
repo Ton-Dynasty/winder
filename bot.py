@@ -144,23 +144,27 @@ async def main():
             except Exception as e:
                 logger.error(f"Error in estimate wind {e}")
                 continue
-
-            buy_num = await check_balance(
-                balance,
-                need_base_asset,
-                need_quote_asset,
-                max_buy_num,
-            )
-            if isinstance(buy_num, int):
-                profitable_alarms.append(
-                    ProfitableAlarm(
-                        id=alarm.id,
-                        price_delta=price_delta,
-                        need_base_asset=need_base_asset * buy_num,
-                        need_quote_asset=need_quote_asset * buy_num,
-                        buy_num=buy_num,
-                    )
+            try:
+                buy_num = await check_balance(
+                    balance,
+                    need_base_asset,
+                    need_quote_asset,
+                    max_buy_num,
                 )
+                if isinstance(buy_num, int):
+                    profitable_alarms.append(
+                        ProfitableAlarm(
+                            id=alarm.id,
+                            price_delta=price_delta,
+                            need_base_asset=need_base_asset * buy_num,
+                            need_quote_asset=need_quote_asset * buy_num,
+                            buy_num=buy_num,
+                        )
+                    )
+            except Exception as e:
+                logger.error(f"Error in check balance {e}")
+                continue
+
         logger.info(f"Profitable Alarms: \n{profitable_alarms}")
         async for profitable_alarm in greedy_strategy(profitable_alarms, balance):
             try:
