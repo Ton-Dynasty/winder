@@ -18,6 +18,7 @@ from strategy import ProfitableAlarm, Balance, greedy_strategy
 load_dotenv()
 
 THRESHOLD_PRICE = os.getenv("TICTON_THRESHOLD_PRICE", 0.7)
+QPS = int(os.getenv("QPS", 9))
 
 # set up logger
 logger = logging.getLogger(__name__)
@@ -56,7 +57,7 @@ async def check_balance(
 
 
 async def main():
-    client = await TicTonAsyncClient.init(testnet=True)
+    client = await TicTonAsyncClient.init(testnet=True, qps=QPS)
     my_address = os.getenv("MY_ADDRESS", "")
 
     logger.info("Syncing Oracle Metadata")
