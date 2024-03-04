@@ -142,6 +142,8 @@ async def main():
                     max_buy_num = alarm_info.base_asset_scale
                 else:
                     max_buy_num = alarm_info.quote_asset_scale
+
+                max_buy_num = min(max_buy_num, alarm.remain_scale)
             except Exception as e:
                 logger.error(f"Error in estimate wind {e}")
                 continue
