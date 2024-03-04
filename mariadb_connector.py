@@ -138,10 +138,7 @@ async def update_alarm_to_db(alarms: list[Alarm]):
                 VALUES (%s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                 state = VALUES(state),
-                price = VALUES(price),
-                is_mine = VALUES(is_mine),
-                remain_scale = VALUES(remain_scale),
-                created_at = VALUES(created_at)
+                remain_scale = VALUES(remain_scale)
             """
             insert_list = []
             for alarm in alarms:
