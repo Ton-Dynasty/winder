@@ -89,4 +89,9 @@ docker system prune -a --volumes
 rm -rf maria-db
 ```
      
+## FAQ
 
+### Common Errors
+- `TonCenterException 429: Rate limit exceeded: 10 per 1 second` : If this issue arises, it's likely due to network latency. Resolve it by adding QPS ( float, 1~9 ), to the .env file to set the maximum requests per second. The default is 9; reducing the QPS can help.
+- `TonCenterException 503`: This is normal. The problem happens because sometimes the toncenter API is not stable.
+- `TonCenterException 500`: This is normal. This error message occurs when you wind or ring an alarm that no longer exists or has been fully arbitraged. It means you might be winding or ringing again, or someone else got there first.
